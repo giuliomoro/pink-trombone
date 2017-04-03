@@ -1,0 +1,24 @@
+{
+  "name": "pink-trombone",
+  "version": "1.0.0",
+  "description": "The original source code is from http://dood.al/pinktrombone/",
+  "main": "nodeWrapper.js",
+  "dependencies": {
+    "speaker": "^0.3.0",
+    "web-audio-api": "^0.2.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/giuliomoro/pink-trombone.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/giuliomoro/pink-trombone/issues"
+  },
+  "homepage": "https://github.com/giuliomoro/pink-trombone#readme"
+}
