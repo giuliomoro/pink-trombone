@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <string.h>
 
 typedef float sample_t;
 bool isBrowser = false;
@@ -10,6 +11,11 @@ namespace Math{
 sample_t abs(sample_t value)
 {
 	return value >= 0 ? value : -value;
+}
+
+sample_t atan2(sample_t x, sample_t y)
+{
+	return atan2f(x, y);
 }
 
 sample_t atan(sample_t value)
@@ -27,7 +33,7 @@ int floor(sample_t value)
 	return (int32_t)(value + 1);
 }
 
-sample_t ceil(sample_t value)
+int ceil(sample_t value)
 {
 	return (int32_t)(value);
 }
@@ -103,7 +109,6 @@ sample_t gaussian()
 
 float sampleRate;
 //var time = 0;
-//var temp = {a:0, b:0};
 bool alwaysVoice = true;
 bool autoWobble = true;
 float noiseFreq = 500;
@@ -819,9 +824,9 @@ typedef struct _Transient{
 public:
 	GlottisClass* Glottis;
     int n;
-    float bladeStart;
-    float tipStart;
-    float lipStart;
+    int bladeStart;
+    int tipStart;
+    int lipStart;
 	std::vector<sample_t> R;
 	std::vector<sample_t> L;
 	std::vector<sample_t> junctionOutputR;
@@ -1153,6 +1158,7 @@ public:
         this->R[i+2] += noise1 * 0.5;
         this->L[i+2] += noise1 * 0.5;
     }
+	
 };
 
 class AudioSystemClass
@@ -1162,12 +1168,16 @@ public:
     float blockTime;
     bool started;
     bool soundOn;
-	GlottisClass Glottis;
-	TractClass Tract;
+	GlottisClass& Glottis;
+	TractClass& Tract;
+	int samplesBetweenUpdates;
 
-	AudioSystemClass()
+	AudioSystemClass(GlottisClass& newGlottis, TractClass& newTract, int newBlockLength, int newSamplesBetweenUpdates) :
+		Glottis(newGlottis)
+		, Tract(newTract)
 	{
-    	blockLength = 2048;
+    	blockLength = newBlockLength;
+		samplesBetweenUpdates = newSamplesBetweenUpdates;
     	blockTime = 1;
     	started = false;
     	soundOn = false;
@@ -1175,7 +1185,6 @@ public:
 
     void init()
     {
-		// TODO: call Bela stuff
         //this.audioContext = new audioContextParent.AudioContext();
         //if(!isBrowser){
             //console.log("setting out to stdout");
@@ -1185,7 +1194,7 @@ public:
         sampleRate = 44100;
         this->blockTime = this->blockLength/sampleRate;
 		Glottis.init();
-		Tract.init(&Glottis, this->blockTime);
+		Tract.init(&Glottis, this->samplesBetweenUpdates/sampleRate);
     }
 
 	/* TODO: startSound
@@ -1239,14 +1248,15 @@ public:
 
     void doScriptProcessor(sample_t* inputArray1, sample_t* inputArray2, sample_t* outArray, int length)
     {
-        for (int j = 0, N = length; j < N; j++)
+		static int samplesSinceLastUpdate = 0;
+        for (int j = 0, N = samplesBetweenUpdates; j < length; j++)
         {
 			// inputArray(s) contain uncorrelated white noise
 			inputArray1[j] = Math::random();
 			inputArray2[j] = Math::random();
 
-            sample_t lambda1 = j/(sample_t)N;
-            sample_t lambda2 = (j+(sample_t)0.5)/(sample_t)N;
+            sample_t lambda1 = (samplesSinceLastUpdate+j)/(sample_t)N;
+            sample_t lambda2 = (samplesSinceLastUpdate+j+(sample_t)0.5)/(sample_t)N;
             sample_t glottalOutput = Glottis.runStep(lambda1, inputArray1[j]);
 
             sample_t vocalOutput = 0;
@@ -1257,8 +1267,12 @@ public:
             vocalOutput += Tract.lipOutput + Tract.noseOutput;
             outArray[j] = vocalOutput * (sample_t)0.125;
         }
-        Glottis.finishBlock();
-        Tract.finishBlock();
+		samplesSinceLastUpdate += length;
+		if(samplesSinceLastUpdate >= samplesBetweenUpdates){
+			samplesSinceLastUpdate -= samplesBetweenUpdates;
+			Glottis.finishBlock();
+			Tract.finishBlock();
+		}
     }
 
 	/*
@@ -1276,51 +1290,101 @@ public:
 };
 
 
+class  Touch {
+public:
+	float x;
+	float y;
+	float diameter;
+	float fricative_intensity;
+	bool alive;
+	bool enabled;
+	Touch(float x, float y, float diameter, float fricative_intensity, bool alive, bool enabled) :
+		x(x)
+	, y(y)
+	, diameter(diameter)
+	, fricative_intensity(fricative_intensity)
+	, alive(alive)
+	, enabled(enabled)
+	{}
 
-/*
-var TractUI =
+	Touch() {}
+};
+
+class UIClass {
+public:
+	std::vector<Touch> touchesWithMouse;
+	UIClass(){
+		touchesWithMouse.reserve(10);
+	}
+};
+
+class TractUIClass
 {
-    originX : 340,
-    originY : 449,
-    radius : 298,
-    scale : 60,
-    tongueIndex : 12.9,
-    tongueDiameter : 2.43,
-    innerTongueControlRadius : 2.05,
-    outerTongueControlRadius : 3.5,
-    tongueTouch : 0,
-    angleScale : 0.64,
-    angleOffset : -0.24,
-    noseOffset : 0.8,
-    gridOffset : 1.7,
-    fillColour : 'pink',
-    lineColour : '#C070C6',
+public:
+    int originX;
+    int originY;
+    int radius;
+    float scale;
+    float tongueIndex;
+    float tongueDiameter;
+    float innerTongueControlRadius;
+    float outerTongueControlRadius;
+    float angleScale;
+    float angleOffset;
+    float noseOffset;
+    float gridOffset;
+	Touch tongueTouch;
+	TractClass& Tract;
+	UIClass& UI;
+	int tongueLowerIndexBound;
+	int tongueUpperIndexBound;
+	float tongueIndexCentre;
 
-    init : function()
+	TractUIClass(TractClass& newTract, UIClass& newUI) : 
+		Tract(newTract)
+		, UI(newUI)
+	{
+		this->Tract = Tract;
+		originX = 340;
+		originY = 449;
+		radius = 298;
+		scale = 60;
+		tongueIndex = 12.9;
+		tongueDiameter = 2.43;
+		innerTongueControlRadius = 2.05;
+		outerTongueControlRadius = 3.5;
+		tongueTouch.enabled = false;
+		angleScale = 0.64;
+		angleOffset = -0.24;
+		noseOffset = 0.8;
+		gridOffset = 1.7;
+	}
+
+    void init()
     {
-        this.ctx = tractCtx;
-        this.setRestDiameter();
-        for (var i=0; i<Tract.n; i++)
+        this->setRestDiameter();
+        for(int i=0; i<Tract.n; i++)
         {
             Tract.diameter[i] = Tract.targetDiameter[i] = Tract.restDiameter[i];
         }
-        if(isBrowser)
-            this.drawBackground();
-        this.tongueLowerIndexBound = Tract.bladeStart+2;
-        this.tongueUpperIndexBound = Tract.tipStart-3;
-        this.tongueIndexCentre = 0.5*(this.tongueLowerIndexBound+this.tongueUpperIndexBound);
-    },
+        this->tongueLowerIndexBound = Tract.bladeStart+2;
+        this->tongueUpperIndexBound = Tract.tipStart-3;
+        this->tongueIndexCentre = (sample_t)0.5*(this->tongueLowerIndexBound+this->tongueUpperIndexBound);
+    }
 
-    moveTo : function(i,d)
+	/*
+    void moveTo(float i,float d)
     {
-        var angle = this.angleOffset + i * this.angleScale * Math::PI / (Tract.lipStart-1);
-        var wobble = (Tract.maxAmplitude[Tract.n-1]+Tract.noseMaxAmplitude[Tract.noseLength-1]);
-        wobble *= 0.03*Math::sin(2*i-50*time)*i/Tract.n;
+        float angle = this->angleOffset + i * this->angleScale * Math::PI / (Tract.lipStart-1);
+        float wobble = (Tract.maxAmplitude[Tract.n-1]+Tract.noseMaxAmplitude[Tract.noseLength-1]);
+        wobble *= (sample_t)0.03*Math::sin((sample_t)2*i-(sample_t)50*time)*i/Tract.n;
         angle += wobble;
-        var r = this.radius - this.scale*d + 100*wobble;
-        this.ctx.moveTo(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle));
+        float r = this->radius - this->scale*d + (sample_t)100*wobble;
+        // this.ctx.moveTo(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle));
     },
+	*/
 
+/*	
     lineTo : function(i,d)
     {
         var angle = this.angleOffset + i * this.angleScale * Math::PI / (Tract.lipStart-1);
@@ -1330,7 +1394,9 @@ var TractUI =
         var r = this.radius - this.scale*d + 100*wobble;
         this.ctx.lineTo(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle));
     },
+	*/
 
+	/*
     drawText : function(i,d,text)
     {
         var angle = this.angleOffset + i * this.angleScale * Math::PI / (Tract.lipStart-1);
@@ -1361,20 +1427,23 @@ var TractUI =
         this.ctx.arc(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle), radius, 0, 2*Math::PI);
         this.ctx.fill();
     },
+	*/
 
-    getIndex : function(x,y)
+    float getIndex(float x,float y)
     {
-        var xx = x-this.originX; var yy = y-this.originY;
-        var angle = Math::atan2(yy, xx);
-        while (angle> 0) angle -= 2*Math::PI;
-        return (Math::PI + angle - this.angleOffset)*(Tract.lipStart-1) / (this.angleScale*Math::PI);
-    },
-    getDiameter : function(x,y)
-    {
-        var xx = x-this.originX; var yy = y-this.originY;
-        return (this.radius-Math::sqrt(xx*xx + yy*yy))/this.scale;
-    },
+        float xx = x-this->originX; float yy = y-this->originY;
+        float angle = Math::atan2(yy, xx);
+        while (angle> 0) angle -= (sample_t)2*Math::PI;
+        return (Math::PI + angle - this->angleOffset)*(Tract.lipStart-1) / (this->angleScale*Math::PI);
+    }
 
+    float getDiameter(float x,float y)
+    {
+        float xx = x-this->originX; float yy = y-this->originY;
+        return (this->radius-Math::sqrt(xx*xx + yy*yy))/this->scale;
+    }
+
+	/*
     draw : function()
     {
         this.ctx.clearRect(0, 0, tractCanvas.width, tractCanvas.height);
@@ -1662,7 +1731,8 @@ var TractUI =
 
         this.ctx.fillStyle = "orchid";
      },
-
+	*/
+	/*
     drawPitchControl : function()
     {
         var w=9;
@@ -1684,96 +1754,96 @@ var TractUI =
             this.ctx.globalAlpha = 1.0;
         }
     },
+	*/
 
-    setRestDiameter : function()
+    void setRestDiameter()
     {
-        for (var i=Tract.bladeStart; i<Tract.lipStart; i++)
+        for (int i=Tract.bladeStart; i<Tract.lipStart; i++)
         {
-            var t = 1.1 * Math::PI*(this.tongueIndex - i)/(Tract.tipStart - Tract.bladeStart);
-            var fixedTongueDiameter = 2+(this.tongueDiameter-2)/1.5;
-            var curve = (1.5-fixedTongueDiameter+this.gridOffset)*Math::cos(t);
-            if (i == Tract.bladeStart-2 || i == Tract.lipStart-1) curve *= 0.8;
-            if (i == Tract.bladeStart || i == Tract.lipStart-2) curve *= 0.94;
-            Tract.restDiameter[i] = 1.5 - curve;
+            float t = (sample_t)1.1 * Math::PI*(this->tongueIndex - i)/(Tract.tipStart - Tract.bladeStart);
+            float fixedTongueDiameter = (sample_t)2+(this->tongueDiameter-(sample_t)2)/(sample_t)1.5;
+            float curve = ((sample_t)1.5-fixedTongueDiameter+this->gridOffset)*Math::cos(t);
+            if (i == Tract.bladeStart-2 || i == Tract.lipStart-1) curve *= (sample_t)0.8;
+            if (i == Tract.bladeStart || i == Tract.lipStart-2) curve *= (sample_t)0.94;
+            Tract.restDiameter[i] = (sample_t)1.5 - curve;
         }
-    },
+    }
 
-    handleTouches : function()
+    void handleTouches()
     {
-        if (this.tongueTouch != 0 && !this.tongueTouch.alive) this.tongueTouch = 0;
+        if (this->tongueTouch.enabled && !this->tongueTouch.alive) this->tongueTouch.enabled = false;
 
-        if (this.tongueTouch == 0)
+        if (!this->tongueTouch.enabled)
         {
-            for (var j=0; j<UI.touchesWithMouse.length; j++)
+            for (int j=0; j<UI.touchesWithMouse.size(); j++)
             {
-                var touch = UI.touchesWithMouse[j];
+                Touch touch = UI.touchesWithMouse[j];
                 if (!touch.alive) continue;
                 if (touch.fricative_intensity == 1) continue; //only new touches will pass this
-                var x = touch.x;
-                var y = touch.y;
-                var index = TractUI.getIndex(x,y);
-                var diameter = TractUI.getDiameter(x,y);
-                if (index >= this.tongueLowerIndexBound-4 && index<=this.tongueUpperIndexBound+4
-                    && diameter >= this.innerTongueControlRadius-0.5 && diameter <= this.outerTongueControlRadius+0.5)
+                float x = touch.x;
+                float y = touch.y;
+                float index = getIndex(x,y);
+                float diameter = getDiameter(x,y);
+                if (index >= this->tongueLowerIndexBound-4 && index<=this->tongueUpperIndexBound+4
+                    && diameter >= this->innerTongueControlRadius-(sample_t)0.5 && diameter <= this->outerTongueControlRadius+(sample_t)0.5)
                 {
-                    this.tongueTouch = touch;
+                    this->tongueTouch = touch;
                 }
             }
         }
 
-        if (this.tongueTouch != 0)
+        if (this->tongueTouch.enabled)
         {
-            var x = this.tongueTouch.x;
-            var y = this.tongueTouch.y;
-            var index = TractUI.getIndex(x,y);
-            var diameter = TractUI.getDiameter(x,y);
-            var fromPoint = (this.outerTongueControlRadius-diameter)/(this.outerTongueControlRadius-this.innerTongueControlRadius);
+            float x = this->tongueTouch.x;
+            float y = this->tongueTouch.y;
+            float index = getIndex(x,y);
+            float diameter = getDiameter(x,y);
+            float fromPoint = (this->outerTongueControlRadius-diameter)/(this->outerTongueControlRadius-this->innerTongueControlRadius);
             fromPoint = Math::clamp(fromPoint, 0, 1);
-            fromPoint = Math::pow(fromPoint, 0.58) - 0.2*(fromPoint*fromPoint-fromPoint); //horrible kludge to fit curve to straight line
-            this.tongueDiameter = Math::clamp(diameter, this.innerTongueControlRadius, this.outerTongueControlRadius);
-            //this.tongueIndex = Math::clamp(index, this.tongueLowerIndexBound, this.tongueUpperIndexBound);
-            var out = fromPoint*0.5*(this.tongueUpperIndexBound-this.tongueLowerIndexBound);
-            this.tongueIndex = Math::clamp(index, this.tongueIndexCentre-out, this.tongueIndexCentre+out);
+            fromPoint = Math::pow(fromPoint, 0.58) - (sample_t)0.2*(fromPoint*fromPoint-fromPoint); //horrible kludge to fit curve to straight line
+            this->tongueDiameter = Math::clamp(diameter, this->innerTongueControlRadius, this->outerTongueControlRadius);
+            //this->tongueIndex = Math::clamp(index, this->tongueLowerIndexBound, this->tongueUpperIndexBound);
+            float out = fromPoint*(sample_t)0.5*(this->tongueUpperIndexBound-this->tongueLowerIndexBound);
+            this->tongueIndex = Math::clamp(index, this->tongueIndexCentre-out, this->tongueIndexCentre+out);
         }
 
-        this.setRestDiameter();
-        for (var i=0; i<Tract.n; i++) Tract.targetDiameter[i] = Tract.restDiameter[i];
+        this->setRestDiameter();
+        for (int i=0; i<Tract.n; i++) Tract.targetDiameter[i] = Tract.restDiameter[i];
 
         //other constrictions and nose
         Tract.velumTarget = 0.01;
-        for (var j=0; j<UI.touchesWithMouse.length; j++)
+        for (int j=0; j<UI.touchesWithMouse.size(); j++)
         {
-            var touch = UI.touchesWithMouse[j];
+            Touch touch = UI.touchesWithMouse[j];
             if (!touch.alive) continue;
-            var x = touch.x;
-            var y = touch.y;
-            var index = TractUI.getIndex(x,y);
-            var diameter = TractUI.getDiameter(x,y);
-            if (index > Tract.noseStart && diameter < -this.noseOffset)
+            float x = touch.x;
+            float y = touch.y;
+            float index = getIndex(x,y);
+            float diameter = getDiameter(x,y);
+            if (index > Tract.noseStart && diameter < -this->noseOffset)
             {
                 Tract.velumTarget = 0.4;
             }
-            temp.a = index;
-            temp.b = diameter;
-            if (diameter < -0.85-this.noseOffset) continue;
-            diameter -= 0.3;
+            if (diameter < -(sample_t)0.85-this->noseOffset) continue;
+            diameter -= (sample_t)0.3;
             if (diameter<0) diameter = 0;
-            var width=2;
+            float width=2;
             if (index<25) width = 10;
             else if (index>=Tract.tipStart) width= 5;
-            else width = 10-5*(index-25)/(Tract.tipStart-25);
-            if (index >= 2 && index < Tract.n && y<tractCanvas.height && diameter < 3)
+            else width = (sample_t)10-(sample_t)5*(index-(sample_t)25)/(Tract.tipStart-(sample_t)25);
+			float tractCanvasHeight = 60;
+            if (index >= 2 && index < Tract.n && y<tractCanvasHeight && diameter < 3)
             {
-                intIndex = Math::round(index);
-                for (var i=-Math::ceil(width)-1; i<width+1; i++)
+                int intIndex = Math::round(index);
+                for (int i=-Math::ceil(width)-1; i<width+1; i++)
                 {
                     if (intIndex+i<0 || intIndex+i>=Tract.n) continue;
-                    var relpos = (intIndex+i) - index;
-                    relpos = Math::abs(relpos)-0.5;
-                    var shrink;
+                    float relpos = (intIndex+i) - index;
+                    relpos = Math::abs(relpos)-(sample_t)0.5;
+                    float shrink;
                     if (relpos <= 0) shrink = 0;
                     else if (relpos > width) shrink = 1;
-                    else shrink = 0.5*(1-Math::cos(Math::PI * relpos / width));
+                    else shrink = (sample_t)0.5*((sample_t)1-Math::cos(Math::PI * relpos / width));
                     if (diameter < Tract.targetDiameter[intIndex+i])
                     {
                         Tract.targetDiameter[intIndex+i] = diameter + (Tract.targetDiameter[intIndex+i]-diameter)*shrink;
@@ -1781,10 +1851,8 @@ var TractUI =
                 }
             }
         }
-    },
-
-}
-*/
+    }
+};
 
 /*
 function makeButton(x, y, width, height, text, switchedOn)
@@ -2039,19 +2107,50 @@ void enable_runfast();
 }
 int main()
 {
+	autoWobble = false;
 	enable_runfast();
-	AudioSystemClass AudioSystem;
-	AudioSystem.init();
-	int length = 16384;
-	int count = 3000 / (16384/128);
+	GlottisClass Glottis;
+	TractClass Tract;
+	UIClass UI;
+	TractUIClass TractUI(Tract, UI);	
+	int length = 4096;
+	int count = 400000 / length;
 	float sampleRate = 44100;
 	fprintf(stderr, "Running trombone to generate %.2f seconds of audio...\n", length*count/sampleRate);
 	sample_t inputArray1[length];
 	sample_t inputArray2[length];
 	sample_t outArray[length];
+	AudioSystemClass AudioSystem(Glottis, Tract, length, 16384);
+	AudioSystem.init();
 	AudioSystem.started = true;
 	AudioSystem.soundOn = true;
-	for(int n = 0; n < count; ++n){
+	
+	for(int n = 0; n < count/3; ++n){
+		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
+		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
+	}
+
+	UI.touchesWithMouse.emplace_back(
+		209.91253644314867f,  // x
+		339.3586005830904, // y
+		2.1311780432469534, // diameter
+		0, // fricative_intensity
+		true, // alive
+		true // enabled
+		//17.77163858738347 // index
+		//1491410997.452 // startTime
+	);
+	fprintf(stderr, "Change\n");
+
+	for(int n = 0; n < count/3; ++n){
+		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
+		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
+	}
+	TractUI.handleTouches();
+	fprintf(stderr, "Handle change\n");
+
+
+	for(int n = 0; n < count/3; ++n){
 		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
 		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
 	}
