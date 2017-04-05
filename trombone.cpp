@@ -37,7 +37,7 @@ sample_t log(sample_t value)
 	return logf(value);
 }
 
-static constexpr sample_t PI = 3.14;
+static constexpr sample_t PI = 3.14159265359;
 
 sample_t pow(sample_t x, sample_t y)
 {
@@ -692,7 +692,7 @@ public:
 
     sample_t runStep(float lambda, sample_t noiseSource)
     {
-        float timeStep = 1.0 / sampleRate;
+        float timeStep = (sample_t)1.0 / sampleRate;
         this->timeInWaveform += timeStep;
         this->totalTime += timeStep;
         if (this->timeInWaveform>this->waveformLength)
@@ -701,74 +701,74 @@ public:
             this->setupWaveform(lambda);
         }
         sample_t out = this->normalizedLFWaveform(this->timeInWaveform/ this->waveformLength);
-        sample_t aspiration = this->intensity*(1-Math::sqrt(this->UITenseness))* this->getNoiseModulator()*noiseSource;
-        aspiration *= 0.2 + 0.02*(Math::random() * 2 - 1);//noise.simplex1(this->totalTime * 1.99);
+        sample_t aspiration = this->intensity*((sample_t)1-Math::sqrt(this->UITenseness))* this->getNoiseModulator()*noiseSource;
+        aspiration *= (sample_t)0.2 + (sample_t)0.02*(Math::random() * (sample_t)2 - (sample_t)1);//noise.simplex1(this->totalTime * 1.99);
         out += aspiration;
         return out;
     }
 
     float getNoiseModulator()
     {
-        float voiced = 0.1+0.2*Math::max(0,Math::sin(Math::PI*2* this->timeInWaveform/ this->waveformLength));
+        float voiced = (sample_t)0.1+(sample_t)0.2*Math::max(0,Math::sin(Math::PI*(sample_t)2* this->timeInWaveform/ this->waveformLength));
         //return 0.3;
-        return  this->UITenseness*  this->intensity * voiced + (1- this->UITenseness*  this->intensity ) * 0.3;
+        return  this->UITenseness*  this->intensity * voiced + ((sample_t)1- this->UITenseness*  this->intensity ) * (sample_t)0.3;
     }
 
     void finishBlock()
     {
         sample_t vibrato = 0;
-        vibrato += this->vibratoAmount * Math::sin(2*Math::PI * this->totalTime *this->vibratoFrequency);
-        vibrato += 0.02 * (Math::random() * 2 - 1); //noise.simplex1(this->totalTime * 4.07);
-        vibrato += 0.04 * (Math::random() * 2 - 1); //noise.simplex1(this->totalTime * 2.15);
+        vibrato += this->vibratoAmount * Math::sin((sample_t)2*Math::PI * this->totalTime *this->vibratoFrequency);
+        vibrato += (sample_t)0.02 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 4.07);
+        vibrato += (sample_t)0.04 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 2.15);
         if (autoWobble)
         {
-            vibrato += 0.2 * (Math::random() * 2 - 1); //noise.simplex1(this->totalTime * 0.98);
-            vibrato += 0.4 * (Math::random() * 2 - 1); //noise.simplex1(this->totalTime * 0.5);
+            vibrato += (sample_t)0.2 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 0.98);
+            vibrato += (sample_t)0.4 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 0.5);
         }
         if (this->UIFrequency>this->smoothFrequency)
-            this->smoothFrequency = Math::min(this->smoothFrequency * 1.1, this->UIFrequency);
+            this->smoothFrequency = Math::min(this->smoothFrequency * (sample_t)1.1, this->UIFrequency);
         if (this->UIFrequency<this->smoothFrequency)
-            this->smoothFrequency = Math::max(this->smoothFrequency / 1.1, this->UIFrequency);
+            this->smoothFrequency = Math::max(this->smoothFrequency / (sample_t)1.1, this->UIFrequency);
         this->oldFrequency = this->newFrequency;
-        this->newFrequency = this->smoothFrequency * (1+vibrato);
+        this->newFrequency = this->smoothFrequency * ((sample_t)1+vibrato);
         this->oldTenseness = this->newTenseness;
         this->newTenseness = this->UITenseness
-            + 0.1*(Math::random() * 2 - 1) /*noise.simplex1(this->totalTime*0.46) */ +0.05*(Math::random() * 2 - 1); //noise.simplex1(this->totalTime*0.36);
-        if (!this->isTouched && alwaysVoice) this->newTenseness += (3-this->UITenseness)*(1-this->intensity);
+            + (sample_t)0.1*(Math::random() * (sample_t)2 - (sample_t)1) /*noise.simplex1(this->totalTime*0.46) */ +(sample_t)0.05*(Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime*0.36);
+        if (!this->isTouched && alwaysVoice) this->newTenseness += ((sample_t)3-this->UITenseness)*((sample_t)1-this->intensity);
 
-        if (this->isTouched || alwaysVoice) this->intensity += 0.13;
-        else this->intensity -= 0.05;
+        if (this->isTouched || alwaysVoice) this->intensity += (sample_t)0.13;
+        else this->intensity -= (sample_t)0.05;
         this->intensity = Math::clamp(this->intensity, 0, 1);
     }
 
     void setupWaveform(float lambda)
     {
-        this->frequency = this->oldFrequency*(1-lambda) + this->newFrequency*lambda;
-        float tenseness = this->oldTenseness*(1-lambda) + this->newTenseness*lambda;
-        this->Rd = 3*(1-tenseness);
-        this->waveformLength = 1.0/ this->frequency;
+        this->frequency = this->oldFrequency*((sample_t)1-lambda) + this->newFrequency*lambda;
+        float tenseness = this->oldTenseness*((sample_t)1-lambda) + this->newTenseness*lambda;
+        this->Rd = (sample_t)3*((sample_t)1-tenseness);
+        this->waveformLength = (sample_t)1.0/ this->frequency;
 
         float Rd = this->Rd;
         if (Rd<0.5) Rd = 0.5;
         if (Rd>2.7) Rd = 2.7;
         //var output;
         // normalized to time = 1, Ee = 1
-        float Ra = -0.01 + 0.048*Rd;
-        float Rk = 0.224 + 0.118*Rd;
-        float Rg = (Rk/4)*(0.5+1.2*Rk)/(0.11*Rd-Ra*(0.5+1.2*Rk));
+        float Ra = (sample_t)-0.01 + (sample_t)0.048*Rd;
+        float Rk = (sample_t)0.224 + (sample_t)0.118*Rd;
+        float Rg = (Rk * (sample_t)0.25)*((sample_t)0.5+(sample_t)1.2*Rk)/((sample_t)0.11*Rd-Ra*((sample_t)0.5+(sample_t)1.2*Rk));
 
         float Ta = Ra;
-        float Tp = 1 / (2*Rg);
+        float Tp = (sample_t)1 / ((sample_t)2*Rg);
         float Te = Tp + Tp*Rk; //
 
-        float epsilon = 1/Ta;
-        float shift = Math::exp(-epsilon * (1-Te));
-        float Delta = 1 - shift; //divide by this to scale RHS
+        float epsilon = (sample_t)1/Ta;
+        float shift = Math::exp(-epsilon * ((sample_t)1-Te));
+        float Delta = (sample_t)1 - shift; //divide by this to scale RHS
 
-        float RHSIntegral = (1/epsilon)*(shift - 1) + (1-Te)*shift;
+        float RHSIntegral = ((sample_t)1/epsilon)*(shift - (sample_t)1) + ((sample_t)1-Te)*shift;
         RHSIntegral = RHSIntegral/Delta;
 
-        float totalLowerIntegral = - (Te-Tp)/2 + RHSIntegral;
+        float totalLowerIntegral = - (Te-Tp)/(sample_t)2 + RHSIntegral;
         float totalUpperIntegral = -totalLowerIntegral;
 
         float omega = Math::PI/Tp;
@@ -781,10 +781,10 @@ public:
         // dividing the second by the first,
         // letting y = x^(Tp/2 - Te),
         // y * Tp*2 / (pi*s) = -totalUpperIntegral;
-        float y = -Math::PI*s*totalUpperIntegral / (Tp*2);
+        float y = -Math::PI*s*totalUpperIntegral / (Tp*(sample_t)2);
         float z = Math::log(y);
-        float alpha = z/(Tp/2 - Te);
-        float E0 = -1 / (s*Math::exp(alpha*Te));
+        float alpha = z/(Tp/(sample_t)2 - Te);
+        float E0 = -(sample_t)1 / (s*Math::exp(alpha*Te));
         this->alpha = alpha;
         this->E0 = E0;
         this->epsilon = epsilon;
@@ -818,7 +818,7 @@ typedef struct _Transient{
 
 public:
 	GlottisClass* Glottis;
-    float n;
+    int n;
     float bladeStart;
     float tipStart;
     float lipStart;
@@ -897,9 +897,9 @@ public:
     {
 		this->blockTime = newBlockTime;
 		this->Glottis = newGlottis;
-        this->bladeStart = Math::floor(this->bladeStart*this->n/44);
-        this->tipStart = Math::floor(this->tipStart*this->n/44);
-        this->lipStart = Math::floor(this->lipStart*this->n/44);
+        this->bladeStart = Math::floor(this->bladeStart*this->n/(sample_t)44);
+        this->tipStart = Math::floor(this->tipStart*this->n/(sample_t)44);
+        this->lipStart = Math::floor(this->lipStart*this->n/(sample_t)44);
         this->diameter = std::vector<sample_t> (this->n);
         this->restDiameter = std::vector<sample_t> (this->n);
         this->targetDiameter = std::vector<sample_t> (this->n);
@@ -907,9 +907,9 @@ public:
         for (int i=0; i<this->n; i++)
         {
             float diameter = 0;
-            if (i<7*this->n/44-0.5) diameter = 0.6;
-            else if (i<12*this->n/44) diameter = 1.1;
-            else diameter = 1.5;
+            if (i<(sample_t)7*this->n/(sample_t)44-(sample_t)0.5) diameter = (sample_t)0.6;
+            else if (i<(sample_t)12*this->n/(sample_t)44) diameter = (sample_t)1.1;
+            else diameter = (sample_t)1.5;
             this->diameter[i] = this->restDiameter[i] = this->targetDiameter[i] = this->newDiameter[i] = diameter;
         }
         this->R = std::vector<sample_t> (this->n);
@@ -921,7 +921,7 @@ public:
         this->A = std::vector<sample_t> (this->n);
         this->maxAmplitude = std::vector<sample_t> (this->n);
 
-        this->noseLength = Math::floor(28*this->n/44);
+        this->noseLength = Math::floor((sample_t)28*this->n/(sample_t)44);
         this->noseStart = this->n-this->noseLength + 1;
         this->noseR = std::vector<sample_t> (this->noseLength);
         this->noseL = std::vector<sample_t> (this->noseLength);
@@ -934,10 +934,10 @@ public:
         for (int i=0; i<this->noseLength; i++)
         {
             float diameter;
-            float d = 2*(i/this->noseLength);
-            if (d<1) diameter = 0.4+1.6*d;
-            else diameter = 0.5+1.5*(2-d);
-            diameter = Math::min(diameter, 1.9);
+            float d = (sample_t)2*(i/this->noseLength);
+            if (d<1) diameter = (sample_t)0.4+(sample_t)1.6*d;
+            else diameter = (sample_t)0.5+(sample_t)1.5*((sample_t)2-d);
+            diameter = Math::min(diameter, (sample_t)1.9);
             this->noseDiameter[i] = diameter;
         }
         this->newReflectionLeft = this->newReflectionRight = this->newReflectionNose = 0;
@@ -956,12 +956,12 @@ public:
             float targetDiameter = this->targetDiameter[i];
             if (diameter <= 0) newLastObstruction = i;
             float slowReturn;
-            if (i<this->noseStart) slowReturn = 0.6;
-            else if (i >= this->tipStart) slowReturn = 1.0;
-            else slowReturn = 0.6+0.4*(i-this->noseStart)/(this->tipStart-this->noseStart);
-            this->diameter[i] = Math::moveTowards(diameter, targetDiameter, slowReturn*amount, 2*amount);
+            if (i<this->noseStart) slowReturn = (sample_t)0.6;
+            else if (i >= this->tipStart) slowReturn = (sample_t)1.0;
+            else slowReturn = (sample_t)0.6+(sample_t)0.4*(i-this->noseStart)/(this->tipStart-this->noseStart);
+            this->diameter[i] = Math::moveTowards(diameter, targetDiameter, slowReturn*amount, (sample_t)2*amount);
         }
-        if (this->lastObstruction>-1 && newLastObstruction == -1 && this->noseA[0]<0.05)
+        if (this->lastObstruction>-1 && newLastObstruction == -1 && this->noseA[0]<(sample_t)0.05)
         {
             this->addTransient(this->lastObstruction);
         }
@@ -969,7 +969,7 @@ public:
 
         amount = deltaTime * this->movementSpeed;
         this->noseDiameter[0] = Math::moveTowards(this->noseDiameter[0], this->velumTarget,
-                amount*0.25, amount*0.1);
+                amount*(sample_t)0.25, amount*(sample_t)0.1);
         this->noseA[0] = this->noseDiameter[0]*this->noseDiameter[0];
     }
 
@@ -982,7 +982,7 @@ public:
         for (int i=1; i<this->n; i++)
         {
             this->reflection[i] = this->newReflection[i];
-            if (this->A[i] == 0) this->newReflection[i] = 0.999; //to prevent some bad behaviour if 0
+            if (this->A[i] == 0) this->newReflection[i] = (sample_t)0.999; //to prevent some bad behaviour if 0
             else this->newReflection[i] = (this->A[i-1]-this->A[i]) / (this->A[i-1]+this->A[i]);
         }
 
@@ -992,9 +992,9 @@ public:
         this->reflectionRight = this->newReflectionRight;
         this->reflectionNose = this->newReflectionNose;
         sample_t sum = this->A[this->noseStart]+this->A[this->noseStart+1]+this->noseA[0];
-        this->newReflectionLeft = (2*this->A[this->noseStart]-sum)/sum;
-        this->newReflectionRight = (2*this->A[this->noseStart+1]-sum)/sum;
-        this->newReflectionNose = (2*this->noseA[0]-sum)/sum;
+        this->newReflectionLeft = ((sample_t)2*this->A[this->noseStart]-sum)/sum;
+        this->newReflectionRight = ((sample_t)2*this->A[this->noseStart+1]-sum)/sum;
+        this->newReflectionNose = ((sample_t)2*this->noseA[0]-sum)/sum;
     }
 
     void calculateNoseReflections()
@@ -1011,7 +1011,7 @@ public:
 
     void runStep(sample_t glottalOutput, sample_t turbulenceNoise, sample_t lambda)
     {
-        sample_t updateAmplitudes = (Math::random()<0.1);
+        sample_t updateAmplitudes = (Math::random()<(sample_t)0.1);
 
         //mouth
         this->processTransients();
@@ -1023,7 +1023,7 @@ public:
 
         for (int i=1; i<this->n; i++)
         {
-            sample_t r = this->reflection[i] * (1-lambda) + this->newReflection[i]*lambda;
+            sample_t r = this->reflection[i] * ((sample_t)1-lambda) + this->newReflection[i]*lambda;
             sample_t w = r * (this->R[i-1] + this->L[i]);
             this->junctionOutputR[i] = this->R[i-1] - w;
             this->junctionOutputL[i] = this->L[i] + w;
@@ -1031,17 +1031,17 @@ public:
 
         //now at junction with nose
         int i = this->noseStart;
-        sample_t r = this->newReflectionLeft * (1-lambda) + this->reflectionLeft*lambda;
-        this->junctionOutputL[i] = r*this->R[i-1]+(1+r)*(this->noseL[0]+this->L[i]);
-        r = this->newReflectionRight * (1-lambda) + this->reflectionRight*lambda;
-        this->junctionOutputR[i] = r*this->L[i]+(1+r)*(this->R[i-1]+this->noseL[0]);
-        r = this->newReflectionNose * (1-lambda) + this->reflectionNose*lambda;
-        this->noseJunctionOutputR[0] = r*this->noseL[0]+(1+r)*(this->L[i]+this->R[i-1]);
+        sample_t r = this->newReflectionLeft * ((sample_t)1-lambda) + this->reflectionLeft*lambda;
+        this->junctionOutputL[i] = r*this->R[i-1]+((sample_t)1+r)*(this->noseL[0]+this->L[i]);
+        r = this->newReflectionRight * ((sample_t)1-lambda) + this->reflectionRight*lambda;
+        this->junctionOutputR[i] = r*this->L[i]+((sample_t)1+r)*(this->R[i-1]+this->noseL[0]);
+        r = this->newReflectionNose * ((sample_t)1-lambda) + this->reflectionNose*lambda;
+        this->noseJunctionOutputR[0] = r*this->noseL[0]+((sample_t)1+r)*(this->L[i]+this->R[i-1]);
 
         for (int i=0; i<this->n; i++)
         {
-            this->R[i] = this->junctionOutputR[i]*0.999;
-            this->L[i] = this->junctionOutputL[i+1]*0.999;
+            this->R[i] = this->junctionOutputR[i]*(sample_t)0.999;
+            this->L[i] = this->junctionOutputL[i+1]*(sample_t)0.999;
 
             //this->R[i] = Math::clamp(this->junctionOutputR[i] * this->fade, -1, 1);
             //this->L[i] = Math::clamp(this->junctionOutputL[i+1] * this->fade, -1, 1);
@@ -1050,7 +1050,7 @@ public:
             {
                 sample_t amplitude = Math::abs(this->R[i]+this->L[i]);
                 if (amplitude > this->maxAmplitude[i]) this->maxAmplitude[i] = amplitude;
-                else this->maxAmplitude[i] *= 0.999;
+                else this->maxAmplitude[i] *= (sample_t)0.999;
             }
         }
 
@@ -1078,7 +1078,7 @@ public:
             {
                 sample_t amplitude = Math::abs(this->noseR[i]+this->noseL[i]);
                 if (amplitude > this->noseMaxAmplitude[i]) this->noseMaxAmplitude[i] = amplitude;
-                else this->noseMaxAmplitude[i] *= 0.999;
+                else this->noseMaxAmplitude[i] *= (sample_t)0.999;
             }
         }
 
@@ -1108,10 +1108,10 @@ public:
         for (int i = 0; i < this->transients.size(); i++)
         {
             Transient trans = this->transients[i];
-            sample_t amplitude = trans.strength * Math::pow(2, -trans.exponent * trans.timeAlive);
-            this->R[trans.position] += amplitude/2;
-            this->L[trans.position] += amplitude/2;
-            trans.timeAlive += 1.0/(sampleRate*2);
+            sample_t amplitude = trans.strength * Math::pow((sample_t)2, -trans.exponent * trans.timeAlive);
+            this->R[trans.position] += amplitude/(sample_t)2;
+            this->L[trans.position] += amplitude/(sample_t)2;
+            trans.timeAlive += (sample_t)1.0/(sampleRate*(sample_t)2);
         }
         for (int i=this->transients.size()-1; i>=0; i--)
         {
@@ -1144,14 +1144,14 @@ public:
         int i = Math::floor(index);
         float delta = index - i;
         turbulenceNoise *= Glottis->getNoiseModulator();
-        sample_t thinness0 = Math::clamp(8*(0.7-diameter),0,1);
-        sample_t openness = Math::clamp(30*(diameter-0.3), 0, 1);
-        sample_t noise0 = turbulenceNoise*(1-delta)*thinness0*openness;
+        sample_t thinness0 = Math::clamp((sample_t)8*((sample_t)0.7-diameter),0,1);
+        sample_t openness = Math::clamp((sample_t)30*(diameter-(sample_t)0.3), 0, 1);
+        sample_t noise0 = turbulenceNoise*((sample_t)1-delta)*thinness0*openness;
         sample_t noise1 = turbulenceNoise*delta*thinness0*openness;
-        this->R[i+1] += noise0/2;
-        this->L[i+1] += noise0/2;
-        this->R[i+2] += noise1/2;
-        this->L[i+2] += noise1/2;
+        this->R[i+1] += noise0 * 0.5;
+        this->L[i+1] += noise0 * 0.5;
+        this->R[i+2] += noise1 * 0.5;
+        this->L[i+2] += noise1 * 0.5;
     }
 };
 
@@ -1255,7 +1255,7 @@ public:
             vocalOutput += Tract.lipOutput + Tract.noseOutput;
             Tract.runStep(glottalOutput, inputArray2[j], lambda2);
             vocalOutput += Tract.lipOutput + Tract.noseOutput;
-            outArray[j] = vocalOutput * 0.125;
+            outArray[j] = vocalOutput * (sample_t)0.125;
         }
         Glottis.finishBlock();
         Tract.finishBlock();
@@ -2042,10 +2042,10 @@ int main()
 	enable_runfast();
 	AudioSystemClass AudioSystem;
 	AudioSystem.init();
-	int length = 128;
-	int count = 3000;
+	int length = 16384;
+	int count = 3000 / (16384/128);
 	float sampleRate = 44100;
-	printf("Running trombone to generate %.2f seconds of audio...\n", length*count/sampleRate);
+	fprintf(stderr, "Running trombone to generate %.2f seconds of audio...\n", length*count/sampleRate);
 	sample_t inputArray1[length];
 	sample_t inputArray2[length];
 	sample_t outArray[length];
@@ -2053,7 +2053,7 @@ int main()
 	AudioSystem.soundOn = true;
 	for(int n = 0; n < count; ++n){
 		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
-		//fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
+		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
 	}
 	return 0;
 }
