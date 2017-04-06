@@ -2130,6 +2130,7 @@ bool setup(BelaContext* context, void*)
 	AudioSystem->init();
 	AudioSystem->started = true;
 	AudioSystem->soundOn = true;
+	TractUI->init();
 	
 	return true;
 }
