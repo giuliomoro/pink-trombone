@@ -2125,34 +2125,45 @@ int main()
 	AudioSystem.started = true;
 	AudioSystem.soundOn = true;
 	
-	for(int n = 0; n < count/3; ++n){
-		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
-		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
+	Touch& t = TractUI.tongueTouch;
+	for(int k = 0; k < 3; ++k){
+		for(int n = 0; n < count; ++n){
+			if(n == 0){
+				t.x = 286;
+				t.y = 386;
+				t.diameter = 2.1;
+				t.fricative_intensity = 0;
+				t.alive = true;
+				t.enabled = true;
+				fprintf(stderr, "Default\n");
+				//Glottis.UIFrequency = 300;
+				TractUI.handleTouches();
+			}
+
+			if(n == count / 3){
+				t.x = 174;
+				t.y = 386;
+				t.diameter = 2.1;
+				t.fricative_intensity = 0;
+				t.alive = true;
+				t.enabled = true;
+				fprintf(stderr, "Change\n");
+				//Glottis.UIFrequency = 300;
+				TractUI.handleTouches();
+			}
+			if(n == 2 * count / 3){
+				t.x = 286;
+				t.y = 234;
+				t.alive = true;
+				t.enabled = true;
+				fprintf(stderr, "Change again\n");
+				//Glottis.UIFrequency = 400;
+				TractUI.handleTouches();
+			}
+			AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
+			fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
+		}
 	}
 
-	UI.touchesWithMouse.emplace_back(
-		209.91253644314867f,  // x
-		339.3586005830904, // y
-		2.1311780432469534, // diameter
-		0, // fricative_intensity
-		true, // alive
-		true // enabled
-		//17.77163858738347 // index
-		//1491410997.452 // startTime
-	);
-	fprintf(stderr, "Change\n");
-
-	for(int n = 0; n < count/3; ++n){
-		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
-		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
-	}
-	TractUI.handleTouches();
-	fprintf(stderr, "Handle change\n");
-
-
-	for(int n = 0; n < count/3; ++n){
-		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
-		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
-	}
 	return 0;
 }
