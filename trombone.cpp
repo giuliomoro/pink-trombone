@@ -514,7 +514,7 @@ public:
 	//keyboardHeight = 100;
 	int semitones;
 	//marks = [0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0];
-	float baseNote; //F
+	float baseNote;
 	float frequency;
 	float Rd;
 	float alpha;
@@ -1307,7 +1307,10 @@ public:
 	, enabled(enabled)
 	{}
 
-	Touch() {}
+	Touch()
+	{
+		memset(this, 0, sizeof(Touch));
+	}
 };
 
 class UIClass {
@@ -2102,57 +2105,100 @@ function redraw(highResTimestamp)
 
 })(this);
 */
-extern "C" {
-void enable_runfast();
-}
-int main()
+#include <Bela.h>
+#include <Midi.h>
+#include <signal.h>
+const char* gMidiPort0 = "hw:1,0,0";
+Midi midi;
+AudioSystemClass* AudioSystem;
+int gLength;
+GlottisClass Glottis;
+TractClass Tract;
+UIClass UI;
+TractUIClass* TractUI;
+
+bool setup(BelaContext* context, void*)
 {
+	midi.readFrom(gMidiPort0);
+	midi.enableParser(true);
+	gLength = context->audioFrames;
+
 	autoWobble = false;
-	enable_runfast();
-	GlottisClass Glottis;
-	TractClass Tract;
-	UIClass UI;
-	TractUIClass TractUI(Tract, UI);	
-	int length = 4096;
-	int count = 400000 / length;
-	float sampleRate = 44100;
-	fprintf(stderr, "Running trombone to generate %.2f seconds of audio...\n", length*count/sampleRate);
-	sample_t inputArray1[length];
-	sample_t inputArray2[length];
-	sample_t outArray[length];
-	AudioSystemClass AudioSystem(Glottis, Tract, length, 16384);
-	AudioSystem.init();
-	AudioSystem.started = true;
-	AudioSystem.soundOn = true;
+	TractUI = new TractUIClass(Tract, UI);	
+
+	AudioSystem = new AudioSystemClass(Glottis, Tract, gLength, 4096);
+	AudioSystem->init();
+	AudioSystem->started = true;
+	AudioSystem->soundOn = true;
 	
-	for(int n = 0; n < count/3; ++n){
-		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
-		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
-	}
-
-	UI.touchesWithMouse.emplace_back(
-		209.91253644314867f,  // x
-		339.3586005830904, // y
-		2.1311780432469534, // diameter
-		0, // fricative_intensity
-		true, // alive
-		true // enabled
-		//17.77163858738347 // index
-		//1491410997.452 // startTime
-	);
-	fprintf(stderr, "Change\n");
-
-	for(int n = 0; n < count/3; ++n){
-		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
-		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
-	}
-	TractUI.handleTouches();
-	fprintf(stderr, "Handle change\n");
-
-
-	for(int n = 0; n < count/3; ++n){
-		AudioSystem.doScriptProcessor(inputArray1, inputArray2, outArray, length);
-		fwrite(outArray, 1, sizeof(sample_t)*length, stdout);
-	}
-	return 0;
+	return true;
 }
+
+void render(BelaContext* context, void*)
+{
+	sample_t inputArray1[gLength];
+	sample_t inputArray2[gLength];
+	sample_t outArray[gLength];
+	// Check for MIDI messages
+	int num;
+	while((num = midi.getParser()->numAvailableMessages()) > 0){
+		static MidiChannelMessage message;
+		message = midi.getParser()->getNextChannelMessage();
+		message.prettyPrint();
+		if(message.getType() == kmmNoteOn){
+			float f0 = powf(2, (message.getDataByte(0)-69)/12.0f) * 440;
+			rt_printf("Note: %d, frequency: %.2f\n", message.getDataByte(0), f0);
+		}
+		if(message.getType() == kmmControlChange){
+			rt_printf("channel: %d, control: %d, value: %d\n", message.getChannel(), message.getDataByte(0), message.getDataByte(1));
+		}
+	}
+
+	static int state = 0;
+	static int lastChange = 0;
+	static int numStates = 3;
+	if(context->audioFramesElapsed - lastChange > 150000){
+		lastChange = context->audioFramesElapsed;
+		state++;
+		if(state >= numStates)
+			state -= numStates;
+		Touch& t = TractUI->tongueTouch;
+		if(state == 0){
+			t.enabled = false;
+			rt_printf("Reset\n");
+			//Glottis.UIFrequency = 200;
+		}
+		if(state == 1){
+			t.x = 174;
+			t.y = 386;
+			t.diameter = 2.1;
+			t.fricative_intensity = 0;
+			t.alive = true;
+			t.enabled = true;
+			rt_printf("Change\n");
+			//Glottis.UIFrequency = 300;
+		}
+		if(state == 2){
+			t.x = 286;
+			t.y = 234;
+			t.alive = true;
+			t.enabled = true;
+			rt_printf("Change again\n");
+			//Glottis.UIFrequency = 400;
+		}
+		TractUI->handleTouches();
+	}
+	AudioSystem->doScriptProcessor(inputArray1, inputArray2, outArray, gLength);
+	for(unsigned int n = 0; n < context->audioFrames; ++n)
+	{
+		float out = outArray[n];
+		audioWrite(context, n, 0, out);
+		audioWrite(context, n, 1, out);
+	}
+}
+
+void cleanup(BelaContext* context, void*)
+{
+	delete AudioSystem;
+}
+
