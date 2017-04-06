@@ -855,9 +855,6 @@ public:
 	sample_t newReflectionLeft;
 	sample_t newReflectionRight;
 	sample_t newReflectionNose;
-
-
-
     float glottalReflection;
     float lipReflection;
     int lastObstruction;
@@ -1177,10 +1174,10 @@ public:
 		, Tract(newTract)
 	{
     	blockLength = newBlockLength;
-		samplesBetweenUpdates = newSamplesBetweenUpdates;
     	blockTime = 1;
     	started = false;
     	soundOn = false;
+		samplesBetweenUpdates = newSamplesBetweenUpdates;
 	}
 
     void init()
@@ -1344,7 +1341,6 @@ public:
 		Tract(newTract)
 		, UI(newUI)
 	{
-		this->Tract = Tract;
 		originX = 340;
 		originY = 449;
 		radius = 298;
@@ -2114,7 +2110,7 @@ int main()
 	UIClass UI;
 	TractUIClass TractUI(Tract, UI);	
 	int length = 128;
-	int count = 400000 / length;
+	int count = 200000 / length;
 	float sampleRate = 44100;
 	fprintf(stderr, "Running trombone to generate %.2f seconds of audio...\n", length*count/sampleRate);
 	sample_t inputArray1[length];
@@ -2122,6 +2118,7 @@ int main()
 	sample_t outArray[length];
 	AudioSystemClass AudioSystem(Glottis, Tract, length, 16384);
 	AudioSystem.init();
+	TractUI.init(); // needs to be init'ed after Tract, which is init'ed in AudioSystem
 	AudioSystem.started = true;
 	AudioSystem.soundOn = true;
 	
