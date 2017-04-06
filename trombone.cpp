@@ -2113,7 +2113,7 @@ int main()
 	TractClass Tract;
 	UIClass UI;
 	TractUIClass TractUI(Tract, UI);	
-	int length = 4096;
+	int length = 128;
 	int count = 400000 / length;
 	float sampleRate = 44100;
 	fprintf(stderr, "Running trombone to generate %.2f seconds of audio...\n", length*count/sampleRate);
