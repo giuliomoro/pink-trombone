@@ -2126,7 +2126,7 @@ bool setup(BelaContext* context, void*)
 	autoWobble = false;
 	TractUI = new TractUIClass(Tract, UI);	
 
-	AudioSystem = new AudioSystemClass(Glottis, Tract, gLength, 4096);
+	AudioSystem = new AudioSystemClass(Glottis, Tract, gLength, 16384);
 	AudioSystem->init();
 	AudioSystem->started = true;
 	AudioSystem->soundOn = true;
@@ -2164,9 +2164,13 @@ void render(BelaContext* context, void*)
 			state -= numStates;
 		Touch& t = TractUI->tongueTouch;
 		if(state == 0){
-			t.enabled = false;
-			rt_printf("Reset\n");
-			//Glottis.UIFrequency = 200;
+			t.x = 286;
+			t.y = 386;
+			t.diameter = 2.1;
+			t.fricative_intensity = 0;
+			t.alive = true;
+			t.enabled = true;
+			rt_fprintf(stderr, "Default\n");
 		}
 		if(state == 1){
 			t.x = 174;
@@ -2175,16 +2179,14 @@ void render(BelaContext* context, void*)
 			t.fricative_intensity = 0;
 			t.alive = true;
 			t.enabled = true;
-			rt_printf("Change\n");
-			//Glottis.UIFrequency = 300;
+			rt_fprintf(stderr, "Change\n");
 		}
 		if(state == 2){
 			t.x = 286;
 			t.y = 234;
 			t.alive = true;
 			t.enabled = true;
-			rt_printf("Change again\n");
-			//Glottis.UIFrequency = 400;
+			rt_fprintf(stderr, "Change again\n");
 		}
 		TractUI->handleTouches();
 	}
