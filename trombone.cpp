@@ -1,3 +1,4 @@
+#include <Bela.h>
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -485,6 +486,38 @@ var UI =
 }
 */
 
+class Touch {
+public:
+	float x;
+	float y;
+	float diameter;
+	float fricative_intensity;
+	bool alive;
+	bool enabled;
+	float index;
+	Touch(float x, float y, float diameter, float fricative_intensity, bool alive, bool enabled) :
+		x(x)
+	, y(y)
+	, diameter(diameter)
+	, fricative_intensity(fricative_intensity)
+	, alive(alive)
+	, enabled(enabled)
+	{}
+
+	Touch()
+	{
+		memset(this, 0, sizeof(Touch));
+	}
+};
+
+class UIClass {
+public:
+	std::vector<Touch> touchesWithMouse;
+	UIClass(){
+		touchesWithMouse.reserve(10);
+	}
+};
+
 class GlottisClass
 {
 public:
@@ -822,6 +855,7 @@ typedef struct _Transient{
 } Transient;
 
 public:
+	UIClass& UI;
 	GlottisClass* Glottis;
     int n;
     int bladeStart;
@@ -869,7 +903,8 @@ public:
     float velumTarget;
 	float blockTime;
 
-	TractClass()
+	TractClass(UIClass& newUI) :
+		UI(newUI)
 	{
 		transients.reserve(100);
 		n = 44;
@@ -1131,17 +1166,15 @@ public:
     void addTurbulenceNoise(sample_t turbulenceNoise)
     {
 		//TODO
-		/*
-        for (int j=0; j<UI.touchesWithMouse.length; j++)
+        for (int j=0; j<UI.touchesWithMouse.size(); j++)
         {
-            var touch = UI.touchesWithMouse[j];
-            if (touch.index<2 || touch.index>Tract.n) continue;
+            Touch& touch = UI.touchesWithMouse[j];
+            if (touch.index<2 || touch.index>this->n) continue;
             if (touch.diameter<=0) continue;
-            var intensity = touch.fricative_intensity;
+            float intensity = touch.fricative_intensity;
             if (intensity == 0) continue;
-            this.addTurbulenceNoiseAtIndex(0.66*turbulenceNoise*intensity, touch.index, touch.diameter);
+            this->addTurbulenceNoiseAtIndex((sample_t)0.66*turbulenceNoise*intensity, touch.index, touch.diameter);
         }
-		*/
     }
 
     void addTurbulenceNoiseAtIndex(sample_t turbulenceNoise, float index, float diameter)
@@ -1153,10 +1186,10 @@ public:
         sample_t openness = Math::clamp((sample_t)30*(diameter-(sample_t)0.3), 0, 1);
         sample_t noise0 = turbulenceNoise*((sample_t)1-delta)*thinness0*openness;
         sample_t noise1 = turbulenceNoise*delta*thinness0*openness;
-        this->R[i+1] += noise0 * 0.5;
-        this->L[i+1] += noise0 * 0.5;
-        this->R[i+2] += noise1 * 0.5;
-        this->L[i+2] += noise1 * 0.5;
+        this->R[i+1] += noise0 * (sample_t)0.5;
+        this->L[i+1] += noise0 * (sample_t)0.5;
+        this->R[i+2] += noise1 * (sample_t)0.5;
+        this->L[i+2] += noise1 * (sample_t)0.5;
     }
 	
 };
@@ -1290,36 +1323,7 @@ public:
 };
 
 
-class  Touch {
-public:
-	float x;
-	float y;
-	float diameter;
-	float fricative_intensity;
-	bool alive;
-	bool enabled;
-	Touch(float x, float y, float diameter, float fricative_intensity, bool alive, bool enabled) :
-		x(x)
-	, y(y)
-	, diameter(diameter)
-	, fricative_intensity(fricative_intensity)
-	, alive(alive)
-	, enabled(enabled)
-	{}
 
-	Touch()
-	{
-		memset(this, 0, sizeof(Touch));
-	}
-};
-
-class UIClass {
-public:
-	std::vector<Touch> touchesWithMouse;
-	UIClass(){
-		touchesWithMouse.reserve(10);
-	}
-};
 
 class TractUIClass
 {
@@ -1347,7 +1351,6 @@ public:
 		Tract(newTract)
 		, UI(newUI)
 	{
-		this->Tract = Tract;
 		originX = 340;
 		originY = 449;
 		radius = 298;
@@ -1780,6 +1783,7 @@ public:
         {
             for (int j=0; j<UI.touchesWithMouse.size(); j++)
             {
+				rt_printf("Handling mouse touches\n");
                 Touch touch = UI.touchesWithMouse[j];
                 if (!touch.alive) continue;
                 if (touch.fricative_intensity == 1) continue; //only new touches will pass this
@@ -1834,7 +1838,7 @@ public:
             if (index<25) width = 10;
             else if (index>=Tract.tipStart) width= 5;
             else width = (sample_t)10-(sample_t)5*(index-(sample_t)25)/(Tract.tipStart-(sample_t)25);
-			float tractCanvasHeight = 60;
+			float tractCanvasHeight = 600;
             if (index >= 2 && index < Tract.n && y<tractCanvasHeight && diameter < 3)
             {
                 int intIndex = Math::round(index);
@@ -2105,7 +2109,6 @@ function redraw(highResTimestamp)
 
 })(this);
 */
-#include <Bela.h>
 #include <Midi.h>
 #include <signal.h>
 const char* gMidiPort0 = "hw:1,0,0";
@@ -2113,8 +2116,8 @@ Midi midi;
 AudioSystemClass* AudioSystem;
 int gLength;
 GlottisClass Glottis;
-TractClass Tract;
 UIClass UI;
+TractClass Tract(UI);
 TractUIClass* TractUI;
 
 bool setup(BelaContext* context, void*)
@@ -2126,7 +2129,7 @@ bool setup(BelaContext* context, void*)
 	autoWobble = false;
 	TractUI = new TractUIClass(Tract, UI);
 
-	AudioSystem = new AudioSystemClass(Glottis, Tract, gLength, 16384);
+	AudioSystem = new AudioSystemClass(Glottis, Tract, gLength, 4096);
 	AudioSystem->init();
 	AudioSystem->started = true;
 	AudioSystem->soundOn = true;
@@ -2148,16 +2151,81 @@ void render(BelaContext* context, void*)
 		message.prettyPrint();
 		if(message.getType() == kmmNoteOn){
 			float f0 = powf(2, (message.getDataByte(0)-69)/12.0f) * 440;
+			Glottis.UIFrequency = f0;
 			rt_printf("Note: %d, frequency: %.2f\n", message.getDataByte(0), f0);
 		}
 		if(message.getType() == kmmControlChange){
 			rt_printf("channel: %d, control: %d, value: %d\n", message.getChannel(), message.getDataByte(0), message.getDataByte(1));
+			Touch& t = TractUI->tongueTouch;
+			// Control change 1 : x
+			if(message.getDataByte(0) == 1)
+			{
+				float x = message.getDataByte(1);
+				x = x*4 ;
+				rt_printf("x: %.3f\n", x);
+				t.x = x;
+			}
+
+			// Control change 2 : x
+			if(message.getDataByte(0) == 2)
+			{
+				float y = message.getDataByte(1);
+				y = y*4;
+				rt_printf("y: %.3f\n", y);
+				t.y = y;
+			}
+			t.diameter = 2.1;
+			t.fricative_intensity = 0;
+			t.alive = true;
+			t.enabled = true;
+			TractUI->handleTouches();
 		}
 	}
 
 	static int state = 0;
-	static int lastChange = -100000000;
+	static int lastChange = 70000;
 	static int numStates = 3;
+	if(1)
+	if((int)context->audioFramesElapsed - lastChange > 70000){
+		rt_printf("last: %d, current: %d\n", lastChange, context->audioFramesElapsed);
+		lastChange = context->audioFramesElapsed;
+		state++;
+		if(state >= numStates)
+			state -= numStates;
+		std::vector<Touch>& touches = UI.touchesWithMouse;
+		if(state == 0){
+			rt_printf("current size :%d\n", touches.size());
+			touches.clear();
+			rt_printf("Default\n");
+		}
+		if(state == 1){
+			Touch t;
+			t.x = 318;
+			t.y = 180;
+			t.index = 30;
+			t.diameter = 0.44;
+			t.fricative_intensity = 0.9;
+			t.alive = true;
+			t.enabled = true;
+			touches.push_back(t);
+			rt_printf("Change\n");
+		}
+		if(state == 2){
+			Touch t;
+			t.x = 182;
+			t.y = 265;
+			t.index = 30;
+			t.diameter = 0.44;
+			touches[0].fricative_intensity = 0;
+			t.fricative_intensity = 0.4;
+			t.alive = true;
+			t.enabled = true;
+			touches.push_back(t);
+			rt_printf("Change again\n");
+		}
+		TractUI->handleTouches();
+	}
+	if(0)
 	if(context->audioFramesElapsed - lastChange > 150000){
 		lastChange = context->audioFramesElapsed;
 		state++;
@@ -2194,7 +2262,7 @@ void render(BelaContext* context, void*)
 	AudioSystem->doScriptProcessor(inputArray1, inputArray2, outArray, gLength);
 	for(unsigned int n = 0; n < context->audioFrames; ++n)
 	{
-		float out = outArray[n];
+		float out = outArray[n] * 1.5;
 		audioWrite(context, n, 0, out);
 		audioWrite(context, n, 1, out);
 	}
