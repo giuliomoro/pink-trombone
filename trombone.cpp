@@ -110,7 +110,7 @@ sample_t gaussian()
 
 float sampleRate;
 //var time = 0;
-bool alwaysVoice = false;
+bool alwaysVoice = true;
 bool autoWobble = false;
 float noiseFreq = 500;
 float noiseQ = 0.7;
@@ -436,10 +436,15 @@ public:
             vibrato += (sample_t)0.2 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 0.98);
             vibrato += (sample_t)0.4 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 0.5);
         }
+		this->smoothFrequency = this->UIFrequency;
+		/*
+		 * this smoothing is just too smooth , use the above non-smoothing instead.
+		 * Actual smoothing is performed in setupWaveform anyhow
         if (this->UIFrequency>this->smoothFrequency)
             this->smoothFrequency = Math::min(this->smoothFrequency * (sample_t)1.1, this->UIFrequency);
         if (this->UIFrequency<this->smoothFrequency)
             this->smoothFrequency = Math::max(this->smoothFrequency / (sample_t)1.1, this->UIFrequency);
+		*/
         this->oldFrequency = this->newFrequency;
         this->newFrequency = this->smoothFrequency * ((sample_t)1+vibrato);
         this->oldTenseness = this->newTenseness;
@@ -677,7 +682,6 @@ public:
         }
         if (this->lastObstruction>-1 && newLastObstruction == -1 && this->noseA[0]<(sample_t)0.05)
         {
-			rt_printf("addTransient\n");
             this->addTransient(this->lastObstruction);
         }
         this->lastObstruction = newLastObstruction;
@@ -826,10 +830,6 @@ public:
             this->R[trans.position] += amplitude/(sample_t)2;
             this->L[trans.position] += amplitude/(sample_t)2;
             trans.timeAlive += (sample_t)1.0/(sampleRate*(sample_t)2);
-			//static int count = 0;
-			//++count;
-			//if(count % 100 == 0)
-				//rt_printf("lifeTime: %f, timealive: %.8f inc: %.8f\n", trans.lifeTime, trans.timeAlive, (sample_t)1.0/(sampleRate*(sample_t)2));
         }
         for (int i=this->transients.size()-1; i>=0; i--)
         {
@@ -843,7 +843,6 @@ public:
 
     void addTurbulenceNoise(sample_t turbulenceNoise)
     {
-		//TODO
         for (int j=0; j<UI.touchesWithMouse.size(); j++)
         {
             Touch& touch = UI.touchesWithMouse[j];
@@ -853,6 +852,19 @@ public:
             if (intensity == 0) continue;
             this->addTurbulenceNoiseAtIndex((sample_t)0.66*turbulenceNoise*intensity, touch.index, touch.diameter);
         }
+
+		// TODO:
+		// attempt to compensate for touch.fricative_intenisty when setting
+		// diameter directly (no touches used). This is very 
+		// CPU intensive though.
+		//for(unsigned int n = 2; n < this->targetDiameter.size() - 1; ++n)
+		//{
+			// if the diameter is small, there has to be some turbulence!
+			//if(this->targetDiameter[n] < 0.2f)
+			//{
+				//addTurbulenceNoiseAtIndex(0.66f * turbulenceNoise, n + 0.5f, this->targetDiameter[n]);
+			//}
+		//}
     }
 
     void addTurbulenceNoiseAtIndex(sample_t turbulenceNoise, float index, float diameter)
@@ -1056,63 +1068,6 @@ public:
         this->tongueIndexCentre = (sample_t)0.5*(this->tongueLowerIndexBound+this->tongueUpperIndexBound);
     }
 
-	/*
-    void moveTo(float i,float d)
-    {
-        float angle = this->angleOffset + i * this->angleScale * Math::PI / (Tract.lipStart-1);
-        float wobble = (Tract.maxAmplitude[Tract.n-1]+Tract.noseMaxAmplitude[Tract.noseLength-1]);
-        wobble *= (sample_t)0.03*Math::sin((sample_t)2*i-(sample_t)50*time)*i/Tract.n;
-        angle += wobble;
-        float r = this->radius - this->scale*d + (sample_t)100*wobble;
-        // this.ctx.moveTo(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle));
-    },
-	*/
-
-/*	
-    lineTo : function(i,d)
-    {
-        var angle = this.angleOffset + i * this.angleScale * Math::PI / (Tract.lipStart-1);
-        var wobble = (Tract.maxAmplitude[Tract.n-1]+Tract.noseMaxAmplitude[Tract.noseLength-1]);
-        wobble *= 0.03*Math::sin(2*i-50*time)*i/Tract.n;
-        angle += wobble;
-        var r = this.radius - this.scale*d + 100*wobble;
-        this.ctx.lineTo(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle));
-    },
-	*/
-
-	/*
-    drawText : function(i,d,text)
-    {
-        var angle = this.angleOffset + i * this.angleScale * Math::PI / (Tract.lipStart-1);
-        var r = this.radius - this.scale*d;
-        this.ctx.save();
-        this.ctx.translate(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle)+2); //+8);
-        this.ctx.rotate(angle-Math::PI/2);
-        this.ctx.fillText(text, 0, 0);
-        this.ctx.restore();
-    },
-
-    drawTextStraight : function(i,d,text)
-    {
-        var angle = this.angleOffset + i * this.angleScale * Math::PI / (Tract.lipStart-1);
-        var r = this.radius - this.scale*d;
-        this.ctx.save();
-        this.ctx.translate(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle)+2); //+8);
-        //this.ctx.rotate(angle-Math::PI/2);
-        this.ctx.fillText(text, 0, 0);
-        this.ctx.restore();
-    },
-
-    drawCircle : function(i,d,radius)
-    {
-        var angle = this.angleOffset + i * this.angleScale * Math::PI / (Tract.lipStart-1);
-        var r = this.radius - this.scale*d;
-        this.ctx.beginPath();
-        this.ctx.arc(this.originX-r*Math::cos(angle), this.originY-r*Math::sin(angle), radius, 0, 2*Math::PI);
-        this.ctx.fill();
-    },
-	*/
-
     float getIndex(float x,float y)
     {
         float xx = x-this->originX; float yy = y-this->originY;
@@ -1195,6 +1150,7 @@ public:
             float diameter = getDiameter(x,y);
             if (index > Tract.noseStart && diameter < -this->noseOffset)
             {
+                // touch in the nose area: open velum
                 Tract.velumTarget = 0.4;
             }
             if (diameter < -(sample_t)0.85-this->noseOffset) continue;
