@@ -110,8 +110,8 @@ sample_t gaussian()
 
 float sampleRate;
 //var time = 0;
-bool alwaysVoice = true;
-bool autoWobble = true;
+bool alwaysVoice = false;
+bool autoWobble = false;
 float noiseFreq = 500;
 float noiseQ = 0.7;
 
@@ -138,6 +138,29 @@ To end a touch, set its alive=false and/or remove it form the list. The original
 We should look into incorporating it somewhere else.
 
 In Tract the `diameter` of a touch is the diameter of the tract (when it is negative there is an obstruction) at the `index`.
+
+
+TractUI
+bladeStart, tipStart, lipStart are constants set at init(). They are the idnex in the tract where each section starts.
+
+*Tract*
+reshapeTract() and calculateReflections() are called once for every block:
+
+reshapeTract() smooths the diameter of the tract and checks for obstructions in the vocal tract. When an obstruction is removed it generates a transient (addTransient). It then does something with noseDiameter and noseA
+
+calculateReflections() sets the reflections...
+
+Tract::handleTouches()
+- checks for touches to use as tongueTouch
+- processes the tongueTouch to set the tongueIndex and tongueDiameter
+- setRestDiameter(): set the diameter of the tract as dictated by the tongue
+- processes other touches: 
+-- Tract.velumTarget is set to : 0.4 if the touch opens the velum, 0.01 otherwise
+-- Tract.targetDiameter is updated if other touches shrink it more than the tongue does
+
+
+
+
 
 */
 
@@ -498,8 +521,8 @@ public:
 class TractClass
 {
 typedef struct _Transient{
-	int position;
-	int timeAlive;
+	float position;
+	float timeAlive;
 	float lifeTime;
 	float strength;
 	float exponent;
@@ -660,8 +683,7 @@ public:
         this->lastObstruction = newLastObstruction;
 
         amount = deltaTime * this->movementSpeed;
-        this->noseDiameter[0] = Math::moveTowards(this->noseDiameter[0], this->velumTarget,
-                amount*(sample_t)0.25, amount*(sample_t)0.1);
+        this->noseDiameter[0] = Math::moveTowards(this->noseDiameter[0], this->velumTarget, amount*(sample_t)0.25, amount*(sample_t)0.1);
         this->noseA[0] = this->noseDiameter[0]*this->noseDiameter[0];
     }
 
@@ -804,7 +826,10 @@ public:
             this->R[trans.position] += amplitude/(sample_t)2;
             this->L[trans.position] += amplitude/(sample_t)2;
             trans.timeAlive += (sample_t)1.0/(sampleRate*(sample_t)2);
-			//rt_printf("timealive: %f inc: %f\n", trans.timeAlive, (sample_t)1.0/(sampleRate*(sample_t)2));
+			//static int count = 0;
+			//++count;
+			//if(count % 100 == 0)
+				//rt_printf("lifeTime: %f, timealive: %.8f inc: %.8f\n", trans.lifeTime, trans.timeAlive, (sample_t)1.0/(sampleRate*(sample_t)2));
         }
         for (int i=this->transients.size()-1; i>=0; i--)
         {
@@ -1124,7 +1149,7 @@ public:
         {
             for (int j=0; j<UI.touchesWithMouse.size(); j++)
             {
-                Touch touch = UI.touchesWithMouse[j];
+                Touch& touch = UI.touchesWithMouse[j];
                 if (!touch.alive) continue;
                 if (touch.fricative_intensity == 1) continue; //only new touches will pass this
                 float x = touch.x;
@@ -1162,7 +1187,7 @@ public:
         Tract.velumTarget = 0.01;
         for (int j=0; j<UI.touchesWithMouse.size(); j++)
         {
-            Touch touch = UI.touchesWithMouse[j];
+            Touch& touch = UI.touchesWithMouse[j];
             if (!touch.alive) continue;
             float x = touch.x;
             float y = touch.y;
@@ -1182,6 +1207,7 @@ public:
 			float tractCanvasHeight = 600;
             if (index >= 2 && index < Tract.n && y<tractCanvasHeight && diameter < 3)
             {
+				// regular touch
                 int intIndex = Math::round(index);
                 for (int i=-Math::ceil(width)-1; i<width+1; i++)
                 {
@@ -1194,6 +1220,7 @@ public:
                     else shrink = (sample_t)0.5*((sample_t)1-Math::cos(Math::PI * relpos / width));
                     if (diameter < Tract.targetDiameter[intIndex+i])
                     {
+	// the touch makes the diameter smaller than the rest value, update it here
                         Tract.targetDiameter[intIndex+i] = diameter + (Tract.targetDiameter[intIndex+i]-diameter)*shrink;
                     }
                 }
@@ -1456,24 +1483,26 @@ void render(BelaContext* context, void*)
 
 	static int state = 0;
 	static int lastChange = 10000;
-	static int numStates = 3;
+	static int numStates = 2;
 	if(1)
 	if((int)context->audioFramesElapsed - lastChange > 70000){
 		rt_printf("last: %d, current: %d\n", lastChange, context->audioFramesElapsed);
 		lastChange = context->audioFramesElapsed;
 		state++;
+		static int count = -1;
+		count++;
 		if(state >= numStates)
 			state -= numStates;
 		std::vector<Touch>& touches = UI.touchesWithMouse;
 		if(state == 0){
+            Tract.addTransient(count%44);
 			touches.clear();
 			rt_printf("Default\n");
 		}
 		if(state == 1){
-            Tract.addTransient(15);
 			Touch t;
-			t.x = 318;
-			t.y = 180;
+			t.x = 240;
+			t.y = 188;
 			t.index = 30;
 			t.diameter = 0.44;
 			t.fricative_intensity = 0.9;
