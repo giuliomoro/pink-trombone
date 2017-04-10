@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
+#include <array>
 #include <string.h>
 
 typedef float sample_t;
@@ -1366,19 +1367,35 @@ function redraw(highResTimestamp)
 */
 #include <Midi.h>
 #include <signal.h>
-const char* gMidiPort0 = "hw:1,0,0";
-Midi midi;
+std::vector<const char*> gMidiPortNames;
+static std::vector<Midi*> midi;
+
 AudioSystemClass* AudioSystem;
 int gLength;
 GlottisClass Glottis;
 UIClass UI;
 TractClass Tract(UI);
 TractUIClass* TractUI;
+const unsigned int localDiameterSize = 9;
+std::array<int, localDiameterSize> localDiameterMappings = {{19, 23, 27, 31, 49, 53, 57, 61, 62}};
+std::array<float, localDiameterSize> localDiameter = {{0}};
 
+AuxiliaryTask logTask;
+void log(void*);
 bool setup(BelaContext* context, void*)
 {
-	midi.readFrom(gMidiPort0);
-	midi.enableParser(true);
+	gMidiPortNames.push_back("hw:1,0,0");
+	gMidiPortNames.push_back("hw:0,0,0");
+	logTask = Bela_createAuxiliaryTask(log, 40, "logTask", NULL);
+	Bela_scheduleAuxiliaryTask(logTask);
+	midi.resize(gMidiPortNames.size());
+	for(unsigned int n = 0; n < midi.size(); ++n){
+		midi[n] = new Midi();
+		const char* name = gMidiPortNames[n];
+		midi[n]->readFrom(name);
+		midi[n]->writeTo(name);
+		midi[n]->enableParser(true);
+	}
 	gLength = context->audioFrames;
 
 	autoWobble = false;
@@ -1388,6 +1405,7 @@ bool setup(BelaContext* context, void*)
 	AudioSystem->init();
 	AudioSystem->started = true;
 	AudioSystem->soundOn = true;
+
 	TractUI->init();
 	
 	return true;
@@ -1399,48 +1417,90 @@ void render(BelaContext* context, void*)
 	sample_t inputArray2[gLength];
 	sample_t outArray[gLength];
 	// Check for MIDI messages
+	bool changed = false;
 	int num;
-	while((num = midi.getParser()->numAvailableMessages()) > 0){
-		static MidiChannelMessage message;
-		message = midi.getParser()->getNextChannelMessage();
-		message.prettyPrint();
-		if(message.getType() == kmmNoteOn){
-			float f0 = powf(2, (message.getDataByte(0)-69)/12.0f) * 440;
-			Glottis.UIFrequency = f0;
-			rt_printf("Note: %d, frequency: %.2f\n", message.getDataByte(0), f0);
-		}
-		if(message.getType() == kmmControlChange){
-			rt_printf("channel: %d, control: %d, value: %d\n", message.getChannel(), message.getDataByte(0), message.getDataByte(1));
-			Touch& t = TractUI->tongueTouch;
-			// Control change 1 : x
-			if(message.getDataByte(0) == 1)
-			{
-				float x = message.getDataByte(1);
-				x = x*4 ;
-				rt_printf("x: %.3f\n", x);
-				t.x = x;
+	for(unsigned int port = 0; port < midi.size(); ++port){
+		while((num = midi[port]->getParser()->numAvailableMessages()) > 0){
+			static MidiChannelMessage message;
+			message = midi[port]->getParser()->getNextChannelMessage();
+			//message.prettyPrint();
+			if(message.getType() == kmmNoteOn){
+				if(message.getDataByte(1) > 0)
+				{ //onset: get the frequency
+					float f0 = powf(2, (message.getDataByte(0)-69)/12.0f) * 440;
+					Glottis.UIFrequency = f0;
+					rt_printf("Note: %d, frequency: %.2f\n", message.getDataByte(0), f0);
+				}
 			}
+			if(message.getType() == kmmControlChange){
+				//rt_printf("channel: %d, control: %d, value: %d\n", message.getChannel(), message.getDataByte(0), message.getDataByte(1));
+				Touch& t = TractUI->tongueTouch;
+				// Control change 1 : x
+				if(message.getDataByte(0) == 1)
+				{
+					float x = message.getDataByte(1);
+					x = x*4 ;
+					rt_printf("x: %.3f\n", x);
+					t.x = x;
+				}
 
-			// Control change 2 : x
-			if(message.getDataByte(0) == 2)
-			{
-				float y = message.getDataByte(1);
-				y = y*4;
-				rt_printf("y: %.3f\n", y);
-				t.y = y;
+				// Control change 2 : x
+				if(message.getDataByte(0) == 2)
+				{
+					float y = message.getDataByte(1);
+					y = y*4;
+					rt_printf("y: %.3f\n", y);
+					t.y = y;
+				}
+				//t.diameter = 2.1;
+				//t.fricative_intensity = 0;
+				//t.alive = true;
+				//t.enabled = true;
+				//TractUI->handleTouches();
+				
+				if(message.getDataByte(0) == 3)
+				{
+					float tenseness = message.getDataByte(1)/127.f;
+					Glottis.UITenseness = tenseness;
+					Glottis.loudness = Math::pow(Glottis.UITenseness, 0.25);
+				}
+				short int control = message.getDataByte(0);
+				float value = message.getDataByte(1) / 127.f;
+				if(control == 16)
+					Tract.velumTarget = value;
+				value = value * 3.f - 0.4f;
+
+				for(unsigned int n = 0; n < localDiameterMappings.size(); ++n)
+				{
+					if(localDiameterMappings[n] == control){
+						localDiameter[n] = value;
+						//rt_printf("Setting %d (CC %d) to %.3f\n", n, control, value);
+						changed = true;
+					}
+				}
 			}
-			t.diameter = 2.1;
-			t.fricative_intensity = 0;
-			t.alive = true;
-			t.enabled = true;
-			TractUI->handleTouches();
+		}
+	}
+	// update the Tract
+	if(changed)
+	{
+		std::vector<sample_t>& diameter = Tract.targetDiameter;
+		float ratio = ((float)localDiameter.size() - 1.f) / (float)diameter.size();
+		for(int n = 0; n < diameter.size(); ++n)
+		{
+			//linearly interpolate between the positions to obtain diameter
+			float index = n * ratio;
+			int intIndex = (int)index;
+			float frac = index - intIndex;
+			diameter[n] = localDiameter[intIndex] * (1 - frac) + localDiameter[intIndex + 1] * frac;
+			// TODO: add a condition for velumTarget
 		}
 	}
 
 	static int state = 0;
 	static int lastChange = 10000;
 	static int numStates = 2;
-	if(1)
+	if(0)
 	if((int)context->audioFramesElapsed - lastChange > 70000){
 		rt_printf("last: %d, current: %d\n", lastChange, context->audioFramesElapsed);
 		lastChange = context->audioFramesElapsed;
@@ -1519,7 +1579,7 @@ void render(BelaContext* context, void*)
 	AudioSystem->doScriptProcessor(inputArray1, inputArray2, outArray, gLength);
 	for(unsigned int n = 0; n < context->audioFrames; ++n)
 	{
-		float out = outArray[n] * 1.5;
+		float out = outArray[n];
 		audioWrite(context, n, 0, out);
 		audioWrite(context, n, 1, out);
 	}
@@ -1530,3 +1590,18 @@ void cleanup(BelaContext* context, void*)
 	delete AudioSystem;
 }
 
+void log(void*)
+{
+	// logging the tract
+	while(!gShouldStop)
+	{
+		std::vector<sample_t>& diameter = Tract.targetDiameter;
+		for(int n = 0; n < diameter.size(); ++n)
+		{
+			rt_printf("%.2f ", diameter[n]);
+		}
+		rt_printf("V: %.2f", Tract.velumTarget);
+		rt_printf("\n");
+		usleep(100000);
+	}
+}
