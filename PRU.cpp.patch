@@ -1,0 +1,13 @@
+diff --git a/core/PRU.cpp b/core/PRU.cpp
+index 6610a10..0f650a6 100644
+--- a/core/PRU.cpp
++++ b/core/PRU.cpp
+@@ -546,7 +546,7 @@ void PRU::loop(RT_INTR *pru_interrupt, void *userData)
+ 		return;
+ 	}
+ 	// Polling interval is 1/4 of the period
+-	RTIME sleepTime = PRU_SAMPLE_INTERVAL_NS * (context->audioInChannels) * context->audioFrames / 4;
++	RTIME sleepTime = PRU_SAMPLE_INTERVAL_NS * (context->audioInChannels) * context->audioFrames / 16;
+ #endif
+ 
+ 	uint32_t pru_audio_offset, pru_spi_offset;
