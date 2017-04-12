@@ -813,6 +813,7 @@ public:
 
     void addTransient(int position)
     {
+		rt_printf("Added transient at %d\n", position);
         Transient trans;
         trans.position = position;
         trans.timeAlive = 0;
@@ -1108,10 +1109,10 @@ public:
                 Touch& touch = UI.touchesWithMouse[j];
                 if (!touch.alive) continue;
                 if (touch.fricative_intensity == 1) continue; //only new touches will pass this
-                float x = touch.x;
-                float y = touch.y;
-                float index = getIndex(x,y);
-                float diameter = getDiameter(x,y);
+                //float x = touch.x;
+                //float y = touch.y;
+                float index = touch.index;//getIndex(x,y);
+                float diameter = touch.diameter;//getDiameter(x,y);
 				// if the touch is on the tongue, it becomes the new tongueTouch
                 if (index >= this->tongueLowerIndexBound-4 && index<=this->tongueUpperIndexBound+4
                     && diameter >= this->innerTongueControlRadius-(sample_t)0.5 && diameter <= this->outerTongueControlRadius+(sample_t)0.5)
@@ -1123,10 +1124,10 @@ public:
 
         if (this->tongueTouch.enabled)
         {
-            float x = this->tongueTouch.x;
-            float y = this->tongueTouch.y;
-            float index = getIndex(x,y);
-            float diameter = getDiameter(x,y);
+            //float x = this->tongueTouch.x;
+            //float y = this->tongueTouch.y;
+            float index = this->tongueTouch.index;// getIndex(x,y);
+            float diameter = this->tongueTouch.diameter;// getDiameter(x,y);
             float fromPoint = (this->outerTongueControlRadius-diameter)/(this->outerTongueControlRadius-this->innerTongueControlRadius);
             fromPoint = Math::clamp(fromPoint, 0, 1);
             fromPoint = Math::pow(fromPoint, 0.58) - (sample_t)0.2*(fromPoint*fromPoint-fromPoint); //horrible kludge to fit curve to straight line
@@ -1145,10 +1146,10 @@ public:
         {
             Touch& touch = UI.touchesWithMouse[j];
             if (!touch.alive) continue;
-            float x = touch.x;
-            float y = touch.y;
-            float index = getIndex(x,y);
-            float diameter = getDiameter(x,y);
+            //float x = touch.x;
+            //float y = touch.y;
+            float index = touch.index; // getIndex(x,y);
+            float diameter = touch.diameter; // getDiameter(x,y);
             if (index > Tract.noseStart && diameter < -this->noseOffset)
             {
                 // touch in the nose area: open velum
@@ -1162,7 +1163,7 @@ public:
             else if (index>=Tract.tipStart) width= 5;
             else width = (sample_t)10-(sample_t)5*(index-(sample_t)25)/(Tract.tipStart-(sample_t)25);
 			float tractCanvasHeight = 600;
-            if (index >= 2 && index < Tract.n && y<tractCanvasHeight && diameter < 3)
+            if (index >= 2 && index < Tract.n && diameter < 3)
             {
 				// regular touch
                 int intIndex = Math::round(index);
