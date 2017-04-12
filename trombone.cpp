@@ -1385,6 +1385,7 @@ AuxiliaryTask logTask;
 void log(void*);
 bool setup(BelaContext* context, void*)
 {
+	pinMode(context, 0, 0, INPUT);
 	gMidiPortNames.push_back("hw:1,0,0");
 	gMidiPortNames.push_back("hw:0,0,0");
 	logTask = Bela_createAuxiliaryTask(log, 40, "logTask", NULL);
@@ -1481,6 +1482,30 @@ void render(BelaContext* context, void*)
 				}
 			}
 		}
+	}
+	
+	if(1)
+	{
+		std::vector<Touch>& touches = UI.touchesWithMouse;
+		float diameter = analogRead(context, 0, 0) * 1.7 - 0.1;
+		float index = analogRead(context, 0, 1) * 40 + 2;
+		float tenseness = analogRead(context, 0, 2);
+		float frequency = analogRead(context, 0, 3) * 1000 + 50;
+		if(touches.size() == 0){
+			touches.emplace_back();
+		}
+		Touch& touch = touches[0];
+		touch.diameter = diameter;
+		touch.index = index;
+		touch.alive = true;
+		touch.enabled = true;
+
+		int trigIn1 = digitalRead(context, 0, 0);
+		digitalWrite(context, 4, 0, trigIn1);
+		Tract.velumTarget =  trigIn1 ? 0.4 : 0.01 ;
+		Glottis.UITenseness = tenseness;
+		Glottis.UIFrequency = frequency;
+		TractUI->handleTouches();
 	}
 	// update the Tract
 	if(changed)
@@ -1596,13 +1621,20 @@ void log(void*)
 	// logging the tract
 	while(!gShouldStop)
 	{
-		std::vector<sample_t>& diameter = Tract.targetDiameter;
-		for(int n = 0; n < diameter.size(); ++n)
-		{
-			rt_printf("%.2f ", diameter[n]);
+		//std::vector<sample_t>& diameter = Tract.targetDiameter;
+		//for(int n = 0; n < diameter.size(); ++n)
+		//{
+			//rt_printf("%.2f ", diameter[n]);
+		//}
+		//rt_printf("V: %.2f", Tract.velumTarget);
+		//rt_printf("\n");
+		for(int n = 0; n < UI.touchesWithMouse.size(); ++n){
+			Touch& touch = UI.touchesWithMouse[n];
+			rt_printf("Touch %d: ", n);
+			rt_printf("diameter: %.2f, index: %.2f\n", touch.diameter, touch.index);
+			rt_printf("tenseness: %.2f, frequency: %.2f\n", Glottis.UITenseness, Glottis.UIFrequency);
 		}
-		rt_printf("V: %.2f", Tract.velumTarget);
-		rt_printf("\n");
-		usleep(100000);
+		rt_printf("velum: %.2f\n", Tract.velumTarget);
+		usleep(200000);
 	}
 }
