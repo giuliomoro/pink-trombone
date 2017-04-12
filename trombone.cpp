@@ -856,7 +856,7 @@ public:
         }
 
 		// TODO:
-		// attempt to compensate for touch.fricative_intenisty when setting
+		// attempt to compensate for touch.fricative_intensity when setting
 		// diameter directly (no touches used). This is very 
 		// CPU intensive though.
 		//for(unsigned int n = 2; n < this->targetDiameter.size() - 1; ++n)
