@@ -63,7 +63,7 @@ This could have been done by using the `-fsingle-precision-constant` compiler op
 
 As I understand it, you have these controls on the model:
 
-* the `diameter` of the `Tract`. This is represented as an array of 44 values. Typical values are between 0 and 2.
+* the `diameter` of the `Tract`. This is represented as an array of 44 values ("`index`"). Typical values are between 0 and 2.
 * the openness of the `velum` (`0.01` for closed, `0.4` for open)
 * the pitch of the `Glottis` (the x-axis in the "voicebox" in the GUI)
 * the `tenseness` of the `Glottis` (the y-axis in the "voicebox" in the GUI). This also affects the `loudness`.
