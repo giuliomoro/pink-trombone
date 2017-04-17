@@ -1487,10 +1487,10 @@ void render(BelaContext* context, void*)
 	if(1)
 	{
 		std::vector<Touch>& touches = UI.touchesWithMouse;
-		float diameter = analogRead(context, 0, 0) * 1.7 - 0.1;
-		float index = analogRead(context, 0, 1) * 40 + 2;
+		float diameter = analogRead(context, 0, 0) * 3.f - 0.1f;
+		float index = analogRead(context, 0, 1) * 40.f + 2.f;
 		float tenseness = analogRead(context, 0, 2);
-		float frequency = analogRead(context, 0, 3) * 1000 + 50;
+		float frequency = analogRead(context, 0, 3) * 1000.f + 50.f;
 		if(touches.size() == 0){
 			touches.emplace_back();
 		}
