@@ -6,6 +6,7 @@
 #include <vector>
 #include <array>
 #include <string.h>
+#include "SimplexNoise.h"
 
 typedef float sample_t;
 bool isBrowser = false;
@@ -113,7 +114,7 @@ sample_t gaussian()
 float sampleRate;
 //var time = 0;
 bool alwaysVoice = true;
-bool autoWobble = false;
+bool autoWobble = true;
 float noiseFreq = 500;
 float noiseQ = 0.7;
 
@@ -422,6 +423,7 @@ public:
 
     float getNoiseModulator()
     {
+		// TODO: optimize sin
         float voiced = (sample_t)0.1+(sample_t)0.2*Math::max(0,Math::sin(Math::PI*(sample_t)2* this->timeInWaveform/ this->waveformLength));
         //return 0.3;
         return  this->UITenseness*  this->intensity * voiced + ((sample_t)1- this->UITenseness*  this->intensity ) * (sample_t)0.3;
@@ -429,14 +431,22 @@ public:
 
     void finishBlock()
     {
+		static SimplexNoise noise;
         sample_t vibrato = 0;
         vibrato += this->vibratoAmount * Math::sin((sample_t)2*Math::PI * this->totalTime *this->vibratoFrequency);
-        vibrato += (sample_t)0.02 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 4.07);
-        vibrato += (sample_t)0.04 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 2.15);
+        vibrato += (sample_t)0.02 * noise.simplex1(this->totalTime * 4.07);
+        vibrato += (sample_t)0.04 * noise.simplex1(this->totalTime * 2.15);
         if (autoWobble)
         {
-            vibrato += (sample_t)0.2 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 0.98);
-            vibrato += (sample_t)0.4 * (Math::random() * (sample_t)2 - (sample_t)1); //noise.simplex1(this->totalTime * 0.5);
+			static float autoWobbleVibrato = 0;
+			static unsigned int count = 0;
+			count++;
+			if(1)
+			{
+				autoWobbleVibrato =  0.2 * noise.simplex1(this->totalTime * 0.98);
+				autoWobbleVibrato +=  0.4 * noise.noise(this->totalTime * 0.5);
+			}
+			vibrato += autoWobbleVibrato;
         }
 		this->smoothFrequency = this->UIFrequency;
 		/*
@@ -1381,14 +1391,16 @@ const unsigned int localDiameterSize = 9;
 std::array<int, localDiameterSize> localDiameterMappings = {{19, 23, 27, 31, 49, 53, 57, 61, 62}};
 std::array<float, localDiameterSize> localDiameter = {{0}};
 
-unsigned int touch1IndexAnIn= 0;
-unsigned int touch1DiameterAnIn= 1;
+unsigned int touch1IndexAnIn = 0;
+unsigned int touch1DiameterAnIn = 1;
 unsigned int tensenessAnIn = 2;
 unsigned int frequencyAnIn = 3;
-unsigned int touch2IndexAnIn= 4;
+unsigned int touch2IndexAnIn = 4;
 unsigned int touch2DiameterAnIn = 5;
 unsigned int tongueTouchIndexAnIn = 6;
 unsigned int tongueTouchDiameterAnIn = 7;
+unsigned int pitchAnOut = 0;
+
 std::array<unsigned int, 2> touchesIndexAnIn = {{touch1IndexAnIn, touch2IndexAnIn}};
 std::array<unsigned int, 2> touchesDiameterAnIn = {{touch1DiameterAnIn, touch2DiameterAnIn}};
 unsigned int velumDigIn = 0;
@@ -1414,7 +1426,6 @@ bool setup(BelaContext* context, void*)
 	}
 	gLength = context->audioFrames;
 
-	autoWobble = false;
 	TractUI = new TractUIClass(Tract, UI);
 
 	AudioSystem = new AudioSystemClass(Glottis, Tract, gLength, 4096);
@@ -1566,6 +1577,9 @@ void render(BelaContext* context, void*)
 		// echo velum to LED
 		digitalWrite(context, 0, velumDigOut, Tract.velumTarget > 0.2);
 
+		int wobbleInput = digitalRead(context, 0, wobbleDigIn);
+		// autoWobble = wobbleInput;
+
 		// if there is one (or more) obstruction active, blink led
 		digitalWrite(context, 0, obstructionDigOut, Tract.lastObstruction > -1);
 
@@ -1666,6 +1680,24 @@ void render(BelaContext* context, void*)
 		inputArray[n] = 0.5f * (audioRead(context, n, 0) + audioRead(context, n, 1));
 	}
 	AudioSystem->doScriptProcessor(inputArray, glottalOutArray, tractOutArray, gLength);
+	
+	// write pitch out, smoothed
+	//TODO: this could probably be extracted sample-accurate from the Glottis.
+	float targetFrequency = Glottis.newFrequency / 1000.f;
+	float alpha = 1.f/context->analogFrames;
+	static float oldFrequency = 0;
+	float frequency = oldFrequency;
+	static int count = 0;
+	count++;
+	for(unsigned int n = 0; n < context->analogFrames; ++n)
+	{
+		frequency = oldFrequency * alpha + targetFrequency * (1.f - alpha);
+		analogWriteOnce(context, n, pitchAnOut, targetFrequency);
+		analogWriteOnce(context, n, 1, 0.4f);
+		oldFrequency = frequency;
+	}
+
+	// write audio out
 	for(unsigned int n = 0; n < context->audioFrames; ++n)
 	{
 		audioWrite(context, n, 0, glottalOutArray[n]);
