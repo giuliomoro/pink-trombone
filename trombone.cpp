@@ -1,5 +1,6 @@
 #include <Bela.h>
 #include <math.h>
+#include <math_neon.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <vector>
@@ -27,7 +28,7 @@ sample_t atan(sample_t value)
 
 sample_t exp(sample_t value)
 {
-	return expf(value);
+	return expf_neon(value);
 }
 
 int floor(sample_t value)
@@ -42,14 +43,14 @@ int ceil(sample_t value)
 
 sample_t log(sample_t value)
 {
-	return logf(value);
+	return logf_neon(value);
 }
 
 static constexpr sample_t PI = 3.14159265359;
 
 sample_t pow(sample_t x, sample_t y)
 {
-	return powf(x, y);
+	return powf_neon(x, y);
 }
 
 sample_t round(sample_t value)
@@ -59,15 +60,15 @@ sample_t round(sample_t value)
 
 sample_t cos(sample_t phase)
 {
-	return cosf(phase);
+	return cosf_neon(phase);
 }
 
 sample_t sin(sample_t phase)
 {
-	return sinf(phase);
+	return sinf_neon(phase);
 }
 sample_t sqrt(sample_t value){
-	return sqrtf(value);
+	return sqrtf_neon(value);
 }
 
 sample_t random(){
