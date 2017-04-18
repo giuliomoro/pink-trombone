@@ -971,26 +971,25 @@ public:
 	*/
 
 
-    void doScriptProcessor(sample_t* inputArray1, sample_t* inputArray2, sample_t* outArray, int length)
+    void doScriptProcessor(sample_t* inputArray, sample_t* glottalOutArray, sample_t* tractOutArray, int length)
     {
 		static int samplesSinceLastUpdate = 0;
         for (int j = 0, N = samplesBetweenUpdates; j < length; j++)
         {
-			// inputArray(s) contain uncorrelated white noise
-			inputArray1[j] = Math::random();
-			inputArray2[j] = Math::random();
-
             sample_t lambda1 = (samplesSinceLastUpdate+j)/(sample_t)N;
             sample_t lambda2 = (samplesSinceLastUpdate+j+(sample_t)0.5)/(sample_t)N;
-            sample_t glottalOutput = Glottis.runStep(lambda1, inputArray1[j]);
+            sample_t glottalOutput = Glottis.runStep(lambda1, Math::random());
+			// store back glottal output
+			glottalOutArray[j] = glottalOutput;
 
             sample_t vocalOutput = 0;
             //Tract runs at twice the sample rate
-            Tract.runStep(glottalOutput, inputArray2[j], lambda1);
+			float random = Math::random();
+            Tract.runStep(inputArray[j], random, lambda1);
             vocalOutput += Tract.lipOutput + Tract.noseOutput;
-            Tract.runStep(glottalOutput, inputArray2[j], lambda2);
+            Tract.runStep(inputArray[j], random, lambda2);
             vocalOutput += Tract.lipOutput + Tract.noseOutput;
-            outArray[j] = vocalOutput * (sample_t)0.125;
+            tractOutArray[j] = vocalOutput * (sample_t)0.125;
         }
 		samplesSinceLastUpdate += length;
 		if(samplesSinceLastUpdate >= samplesBetweenUpdates){
@@ -1135,13 +1134,14 @@ public:
             //this->tongueIndex = Math::clamp(index, this->tongueLowerIndexBound, this->tongueUpperIndexBound);
             float out = fromPoint*(sample_t)0.5*(this->tongueUpperIndexBound-this->tongueLowerIndexBound);
             this->tongueIndex = Math::clamp(index, this->tongueIndexCentre-out, this->tongueIndexCentre+out);
+
         }
 
         this->setRestDiameter();
         for (int i=0; i<Tract.n; i++) Tract.targetDiameter[i] = Tract.restDiameter[i];
 
         //other constrictions and nose
-        Tract.velumTarget = 0.01;
+        //Tract.velumTarget = 0.01;
         for (int j=0; j<UI.touchesWithMouse.size(); j++)
         {
             Touch& touch = UI.touchesWithMouse[j];
@@ -1153,7 +1153,7 @@ public:
             if (index > Tract.noseStart && diameter < -this->noseOffset)
             {
                 // touch in the nose area: open velum
-                Tract.velumTarget = 0.4;
+                //Tract.velumTarget = 0.4;
             }
             if (diameter < -(sample_t)0.85-this->noseOffset) continue;
             diameter -= (sample_t)0.3;
@@ -1162,7 +1162,6 @@ public:
             if (index<25) width = 10;
             else if (index>=Tract.tipStart) width= 5;
             else width = (sample_t)10-(sample_t)5*(index-(sample_t)25)/(Tract.tipStart-(sample_t)25);
-			float tractCanvasHeight = 600;
             if (index >= 2 && index < Tract.n && diameter < 3)
             {
 				// regular touch
@@ -1381,15 +1380,29 @@ const unsigned int localDiameterSize = 9;
 std::array<int, localDiameterSize> localDiameterMappings = {{19, 23, 27, 31, 49, 53, 57, 61, 62}};
 std::array<float, localDiameterSize> localDiameter = {{0}};
 
+unsigned int touch1IndexAnIn= 0;
+unsigned int touch1DiameterAnIn= 1;
+unsigned int tensenessAnIn = 2;
+unsigned int frequencyAnIn = 3;
+unsigned int touch2IndexAnIn= 4;
+unsigned int touch2DiameterAnIn = 5;
+unsigned int tongueTouchIndexAnIn = 6;
+unsigned int tongueTouchDiameterAnIn = 7;
+std::array<unsigned int, 2> touchesIndexAnIn = {{touch1IndexAnIn, touch2IndexAnIn}};
+std::array<unsigned int, 2> touchesDiameterAnIn = {{touch1DiameterAnIn, touch2DiameterAnIn}};
+unsigned int velumDigIn = 0;
+unsigned int wobbleDigIn = 1;
+unsigned int velumDigOut = 4;
+unsigned int obstructionDigOut = 5;
+std::array<unsigned int, 2> digitalIns = {{velumDigIn, wobbleDigIn}};
+std::array<unsigned int, 2> digitalOuts = {{velumDigOut, obstructionDigOut}};
+
 AuxiliaryTask logTask;
 void log(void*);
 bool setup(BelaContext* context, void*)
 {
-	pinMode(context, 0, 0, INPUT);
 	gMidiPortNames.push_back("hw:1,0,0");
 	gMidiPortNames.push_back("hw:0,0,0");
-	logTask = Bela_createAuxiliaryTask(log, 40, "logTask", NULL);
-	Bela_scheduleAuxiliaryTask(logTask);
 	midi.resize(gMidiPortNames.size());
 	for(unsigned int n = 0; n < midi.size(); ++n){
 		midi[n] = new Midi();
@@ -1409,15 +1422,39 @@ bool setup(BelaContext* context, void*)
 	AudioSystem->soundOn = true;
 
 	TractUI->init();
-	
+
+	// initialize digital I/O
+	for(unsigned int n = 0; n < digitalIns.size(); ++n)
+		pinMode(context, 0, digitalIns[n], INPUT);
+	for(unsigned int n = 0; n < digitalOuts.size(); ++n)
+		pinMode(context, 0, digitalOuts[n], OUTPUT);
+
+	// Create and enable the appropriate number of touches: 
+	std::vector<Touch>& touches = UI.touchesWithMouse;
+	for(unsigned int n = 0; n < touchesIndexAnIn.size(); ++n)
+	{
+		touches.emplace_back();
+		Touch& touch = touches[touches.size() - 1];
+		touch.alive = true;
+		touch.enabled = true;
+		touch.diameter = 3;
+		touch.index = 20;
+		touch.fricative_intensity = 1;
+	}
+	TractUI->tongueTouch.alive = true;
+	TractUI->tongueTouch.enabled = true;
+
+	Tract.velumTarget =  0.4;
+
+	logTask = Bela_createAuxiliaryTask(log, 40, "logTask", NULL);
+	Bela_scheduleAuxiliaryTask(logTask);
+
 	return true;
 }
 
+
 void render(BelaContext* context, void*)
 {
-	sample_t inputArray1[gLength];
-	sample_t inputArray2[gLength];
-	sample_t outArray[gLength];
 	// Check for MIDI messages
 	bool changed = false;
 	int num;
@@ -1483,31 +1520,6 @@ void render(BelaContext* context, void*)
 			}
 		}
 	}
-	
-	if(1)
-	{
-		std::vector<Touch>& touches = UI.touchesWithMouse;
-		float diameter = analogRead(context, 0, 0) * 3.f - 0.1f;
-		float index = analogRead(context, 0, 1) * 40.f + 2.f;
-		float tenseness = analogRead(context, 0, 2);
-		float frequency = analogRead(context, 0, 3) * 1000.f + 50.f;
-		if(touches.size() == 0){
-			touches.emplace_back();
-		}
-		Touch& touch = touches[0];
-		touch.diameter = diameter;
-		touch.index = index;
-		touch.alive = true;
-		touch.enabled = true;
-
-		int trigIn1 = digitalRead(context, 0, 0);
-		digitalWrite(context, 4, 0, trigIn1);
-		Tract.velumTarget =  trigIn1 ? 0.4 : 0.01 ;
-		Glottis.UITenseness = tenseness;
-		Glottis.UIFrequency = frequency;
-		TractUI->handleTouches();
-	}
-	// update the Tract
 	if(changed)
 	{
 		std::vector<sample_t>& diameter = Tract.targetDiameter;
@@ -1522,7 +1534,48 @@ void render(BelaContext* context, void*)
 			// TODO: add a condition for velumTarget
 		}
 	}
+	
+	if(1) 
+	{
+		// handle I/O
 
+		// regular touches
+		std::vector<Touch>& touches = UI.touchesWithMouse;
+		for(unsigned int n = 0; n < touches.size() && n < touchesIndexAnIn.size(); ++n)
+		{
+			float diameter = analogRead(context, 0, touchesDiameterAnIn[n]) * 3.f - 0.1f;
+			float index = analogRead(context, 0, touchesIndexAnIn[n]) * 40.f + 2.f;
+			Touch& touch = touches[n];
+			touch.diameter = diameter;
+			touch.index = index;
+
+		}
+
+		// tongueTouch
+		Touch& tongueTouch = TractUI->tongueTouch;
+		tongueTouch.diameter = analogRead(context, 0, tongueTouchDiameterAnIn) * 2.f + 1.6f;
+		tongueTouch.index = analogRead(context, 0, tongueTouchIndexAnIn) * 20.f + 10.f;
+		//rt_printf("tongueTouch: %f %f\n", tongueTouch.index, tongueTouch.diameter);
+
+		// apply changes
+		TractUI->handleTouches();
+
+		int velumInput = digitalRead(context, 0, velumDigIn);
+		Tract.velumTarget =  velumInput ? 0.4 : 0.01 ;
+		// echo velum to LED
+		digitalWrite(context, 0, velumDigOut, Tract.velumTarget > 0.2);
+
+		// if there is one (or more) obstruction active, blink led
+		digitalWrite(context, 0, obstructionDigOut, Tract.lastObstruction > -1);
+
+		float tenseness = analogRead(context, 0, tensenessAnIn);
+		// TODO: exp scaling
+		float frequency = analogRead(context, 0, frequencyAnIn) * 1000.f + 50.f;
+		Glottis.UITenseness = tenseness;
+		Glottis.UIFrequency = frequency;
+	}
+
+	// update the Tract
 	static int state = 0;
 	static int lastChange = 10000;
 	static int numStates = 2;
@@ -1602,12 +1655,20 @@ void render(BelaContext* context, void*)
 		}
 		TractUI->handleTouches();
 	}
-	AudioSystem->doScriptProcessor(inputArray1, inputArray2, outArray, gLength);
+
+	sample_t inputArray[gLength];
+	sample_t glottalOutArray[gLength];
+	sample_t tractOutArray[gLength];
 	for(unsigned int n = 0; n < context->audioFrames; ++n)
 	{
-		float out = outArray[n];
-		audioWrite(context, n, 0, out);
-		audioWrite(context, n, 1, out);
+		// sum audio inputs
+		inputArray[n] = 0.5f * (audioRead(context, n, 0) + audioRead(context, n, 1));
+	}
+	AudioSystem->doScriptProcessor(inputArray, glottalOutArray, tractOutArray, gLength);
+	for(unsigned int n = 0; n < context->audioFrames; ++n)
+	{
+		audioWrite(context, n, 0, glottalOutArray[n]);
+		audioWrite(context, n, 1, tractOutArray[n]);
 	}
 }
 
@@ -1618,6 +1679,7 @@ void cleanup(BelaContext* context, void*)
 
 void log(void*)
 {
+return;
 	// logging the tract
 	while(!gShouldStop)
 	{
@@ -1631,9 +1693,11 @@ void log(void*)
 		for(int n = 0; n < UI.touchesWithMouse.size(); ++n){
 			Touch& touch = UI.touchesWithMouse[n];
 			rt_printf("Touch %d: ", n);
-			rt_printf("diameter: %.2f, index: %.2f\n", touch.diameter, touch.index);
-			rt_printf("tenseness: %.2f, frequency: %.2f\n", Glottis.UITenseness, Glottis.UIFrequency);
+			rt_printf("index: %.2f, diameter: %.2f\n", touch.index, touch.diameter);
 		}
+		Touch& touch = TractUI->tongueTouch;
+		rt_printf("Tongue:index: %.2f, diameter: %.2f\n", touch.index, touch.diameter);
+		rt_printf("tenseness: %.2f, frequency: %.2f\n", Glottis.UITenseness, Glottis.UIFrequency);
 		rt_printf("velum: %.2f\n", Tract.velumTarget);
 		usleep(200000);
 	}
