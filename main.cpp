@@ -42,7 +42,6 @@ int main(int argc, char *argv[])
 
 	// Set default settings
 	Bela_defaultSettings(&settings);
-	settings.periodSize = 256;
 
 	// Parse command-line arguments
 	while (1) {
@@ -59,6 +58,7 @@ int main(int argc, char *argv[])
 				exit(1);
 		}
 	}
+	settings.periodSize = 128; // overriding whatever the command line says
 
 	// Initialise the PRU audio device
 	if(Bela_initAudio(&settings, 0) != 0) {
