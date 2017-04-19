@@ -51,7 +51,7 @@ static constexpr sample_t PI = 3.14159265359;
 
 sample_t pow(sample_t x, sample_t y)
 {
-	return powf_neon(x, y);
+	return powf(x, y);
 }
 
 sample_t round(sample_t value)
