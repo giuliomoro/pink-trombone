@@ -51,7 +51,7 @@ static constexpr sample_t PI = 3.14159265359;
 
 sample_t pow(sample_t x, sample_t y)
 {
-	return powf_neon(x, y);
+	return powf(x, y);
 }
 
 sample_t round(sample_t value)
@@ -438,14 +438,8 @@ public:
         vibrato += (sample_t)0.04 * noise.simplex1(this->totalTime * 2.15);
         if (autoWobble)
         {
-			static float autoWobbleVibrato = 0;
-			static unsigned int count = 0;
-			count++;
-			if(1)
-			{
-				autoWobbleVibrato =  0.2 * noise.simplex1(this->totalTime * 0.98);
-				autoWobbleVibrato +=  0.4 * noise.noise(this->totalTime * 0.5);
-			}
+			float autoWobbleVibrato =  0.2 * noise.simplex1(this->totalTime * 0.98);
+			autoWobbleVibrato +=  0.4 * noise.noise(this->totalTime * 0.5);
 			vibrato += autoWobbleVibrato;
         }
 		this->smoothFrequency = this->UIFrequency;
@@ -1405,10 +1399,12 @@ std::array<unsigned int, 2> touchesIndexAnIn = {{touch1IndexAnIn, touch2IndexAnI
 std::array<unsigned int, 2> touchesDiameterAnIn = {{touch1DiameterAnIn, touch2DiameterAnIn}};
 unsigned int velumDigIn = 0;
 unsigned int wobbleDigIn = 1;
+unsigned int high1DigOut = 2;
+unsigned int high2DigOut = 3;
 unsigned int velumDigOut = 4;
 unsigned int obstructionDigOut = 5;
 std::array<unsigned int, 2> digitalIns = {{velumDigIn, wobbleDigIn}};
-std::array<unsigned int, 2> digitalOuts = {{velumDigOut, obstructionDigOut}};
+std::array<unsigned int, 4> digitalOuts = {{high1DigOut, high2DigOut, velumDigOut, obstructionDigOut}};
 
 AuxiliaryTask logTask;
 void log(void*);
@@ -1555,7 +1551,7 @@ void render(BelaContext* context, void*)
 		std::vector<Touch>& touches = UI.touchesWithMouse;
 		for(unsigned int n = 0; n < touches.size() && n < touchesIndexAnIn.size(); ++n)
 		{
-			float diameter = analogRead(context, 0, touchesDiameterAnIn[n]) * 3.f - 0.1f;
+			float diameter = (1.f - analogRead(context, 0, touchesDiameterAnIn[n])) * 3.f - 0.1f;
 			float index = analogRead(context, 0, touchesIndexAnIn[n]) * 40.f + 2.f;
 			Touch& touch = touches[n];
 			touch.diameter = diameter;
@@ -1565,7 +1561,7 @@ void render(BelaContext* context, void*)
 
 		// tongueTouch
 		Touch& tongueTouch = TractUI->tongueTouch;
-		tongueTouch.diameter = analogRead(context, 0, tongueTouchDiameterAnIn) * 2.f + 1.6f;
+		tongueTouch.diameter = (1.f - analogRead(context, 0, tongueTouchDiameterAnIn)) * 2.f + 1.6f;
 		tongueTouch.index = analogRead(context, 0, tongueTouchIndexAnIn) * 20.f + 10.f;
 		//rt_printf("tongueTouch: %f %f\n", tongueTouch.index, tongueTouch.diameter);
 
@@ -1578,7 +1574,7 @@ void render(BelaContext* context, void*)
 		digitalWrite(context, 0, velumDigOut, Tract.velumTarget > 0.2);
 
 		int wobbleInput = digitalRead(context, 0, wobbleDigIn);
-		// autoWobble = wobbleInput;
+		autoWobble = !wobbleInput;
 
 		// if there is one (or more) obstruction active, blink led
 		digitalWrite(context, 0, obstructionDigOut, Tract.lastObstruction > -1);
@@ -1588,6 +1584,10 @@ void render(BelaContext* context, void*)
 		float frequency = analogRead(context, 0, frequencyAnIn) * 1000.f + 50.f;
 		Glottis.UITenseness = tenseness;
 		Glottis.UIFrequency = frequency;
+		
+		// set digital out 1 and 2 to "high". This can be useful to control the trig inputs
+		digitalWrite(context, 0, high1DigOut, 1);
+		digitalWrite(context, 0, high2DigOut, 1);
 	}
 
 	// update the Tract
@@ -1698,11 +1698,13 @@ void render(BelaContext* context, void*)
 	}
 
 	// write audio out
-	for(unsigned int n = 0; n < context->audioFrames; ++n)
-	{
-		audioWrite(context, n, 0, glottalOutArray[n]);
-		audioWrite(context, n, 1, tractOutArray[n]);
-	}
+	// mute at startup to get rid of nasty onset transient
+	if(context->audioFramesElapsed > 1.f * context->audioSampleRate)
+		for(unsigned int n = 0; n < context->audioFrames; ++n)
+		{
+			audioWrite(context, n, 0, glottalOutArray[n]);
+			audioWrite(context, n, 1, tractOutArray[n]);
+		}
 }
 
 void cleanup(BelaContext* context, void*)
