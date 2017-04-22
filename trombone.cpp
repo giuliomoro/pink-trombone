@@ -8,6 +8,11 @@
 #include <string.h>
 #include "SimplexNoise.h"
 
+float cvFrequencyOffset = 16.35; // C0
+// Adjust these for 1V/oct
+float cvInScaling = 10; // input voltage range?
+float cvOutScaling = 0.1; // (1 / (output voltage range)). If bypass gain were 0, then this should be 1/cvInScaling
+
 typedef float sample_t;
 bool isBrowser = false;
 
@@ -1580,8 +1585,13 @@ void render(BelaContext* context, void*)
 		digitalWrite(context, 0, obstructionDigOut, Tract.lastObstruction > -1);
 
 		float tenseness = analogRead(context, 0, tensenessAnIn);
-		// TODO: exp scaling
-		float frequency = analogRead(context, 0, frequencyAnIn) * 1000.f + 50.f;
+
+		// float frequency = analogRead(context, 0, frequencyAnIn) * 1000.f + 50.f; // linear frequency scaling
+
+		// expo frequency scaling
+		float frequencyInput = analogRead(context, 0, frequencyAnIn);
+		float frequency = cvFrequencyOffset * powf(2, frequencyInput * cvInScaling);
+
 		Glottis.UITenseness = tenseness;
 		Glottis.UIFrequency = frequency;
 		
@@ -1683,12 +1693,10 @@ void render(BelaContext* context, void*)
 	
 	// write pitch out, smoothed
 	//TODO: this could probably be extracted sample-accurate from the Glottis.
-	float targetFrequency = Glottis.newFrequency / 1000.f;
+	float targetFrequency = log2f(Glottis.newFrequency / cvFrequencyOffset) * cvOutScaling;
 	float alpha = 1.f/context->analogFrames;
 	static float oldFrequency = 0;
 	float frequency = oldFrequency;
-	static int count = 0;
-	count++;
 	for(unsigned int n = 0; n < context->analogFrames; ++n)
 	{
 		frequency = oldFrequency * alpha + targetFrequency * (1.f - alpha);
