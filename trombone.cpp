@@ -1402,11 +1402,29 @@ unsigned int pitchAnOut = 0;
 
 std::array<unsigned int, 2> touchesIndexAnIn = {{touch1IndexAnIn, touch2IndexAnIn}};
 std::array<unsigned int, 2> touchesDiameterAnIn = {{touch1DiameterAnIn, touch2DiameterAnIn}};
-unsigned int velumDigIn = 0;
-unsigned int wobbleDigIn = 1;
-unsigned int high1DigOut = 2;
-unsigned int high2DigOut = 3;
-unsigned int velumDigOut = 4;
+enum
+{
+	switch1 = 6,
+	trigIn1 = 15,
+	trigIn2 = 14,
+	trigIn3 = 1,
+	trigIn4 = 3,
+	trigOut1 = 0,
+	trigOut2 = 5,
+	trigOut3 = 12,
+	trigOut4 = 13,
+	ledOut1 = 2,
+	ledOut2 = 4,
+	ledOut3 = 8,
+	ledOut4 = 10,
+	pwmOut = 7,
+};
+
+unsigned int velumDigIn = trigIn1;
+unsigned int wobbleDigIn = trigIn2;
+unsigned int high1DigOut = trigOut1;
+unsigned int high2DigOut = trigOut2;
+unsigned int velumDigOut = ledOut1;
 unsigned int obstructionDigOut = 5;
 std::array<unsigned int, 2> digitalIns = {{velumDigIn, wobbleDigIn}};
 std::array<unsigned int, 4> digitalOuts = {{high1DigOut, high2DigOut, velumDigOut, obstructionDigOut}};
