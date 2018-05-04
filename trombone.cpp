@@ -1,5 +1,5 @@
 #include <Bela.h>
-#include <math.h>
+# include <math.h>
 #include <math_neon.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -1425,9 +1425,10 @@ unsigned int wobbleDigIn = trigIn2;
 unsigned int high1DigOut = trigOut1;
 unsigned int high2DigOut = trigOut2;
 unsigned int velumDigOut = ledOut1;
-unsigned int obstructionDigOut = 5;
+unsigned int wobbleDigOut = ledOut2;
+unsigned int obstructionDigOut = ledOut3;
 std::array<unsigned int, 2> digitalIns = {{velumDigIn, wobbleDigIn}};
-std::array<unsigned int, 4> digitalOuts = {{high1DigOut, high2DigOut, velumDigOut, obstructionDigOut}};
+std::array<unsigned int, 6> digitalOuts = {{high1DigOut, high2DigOut, velumDigOut, obstructionDigOut, wobbleDigOut, pwmOut}};
 
 AuxiliaryTask logTask;
 void log(void*);
@@ -1483,9 +1484,12 @@ bool setup(BelaContext* context, void*)
 	return true;
 }
 
+void drivePwm(BelaContext* context, int pwmPin);
+void setLed(BelaContext* context, int ledPin,  int color);
 
 void render(BelaContext* context, void*)
 {
+	drivePwm(context, pwmOut);
 	// Check for MIDI messages
 	bool changed = false;
 	int num;
@@ -1594,13 +1598,13 @@ void render(BelaContext* context, void*)
 		int velumInput = digitalRead(context, 0, velumDigIn);
 		Tract.velumTarget =  velumInput ? 0.4 : 0.01 ;
 		// echo velum to LED
-		digitalWrite(context, 0, velumDigOut, Tract.velumTarget > 0.2);
-
+		setLed(context, velumDigOut, (Tract.velumTarget > 0.2) * 2);
 		int wobbleInput = digitalRead(context, 0, wobbleDigIn);
 		autoWobble = !wobbleInput;
+		setLed(context, wobbleDigOut, autoWobble * 2);
 
 		// if there is one (or more) obstruction active, blink led
-		digitalWrite(context, 0, obstructionDigOut, Tract.lastObstruction > -1);
+		setLed(context, obstructionDigOut, (Tract.lastObstruction > -1) * 2);
 
 		float tenseness = analogRead(context, 0, tensenessAnIn);
 
