@@ -8,38 +8,11 @@ Port for Bela: written in C++, plugged into the simple Bela API.
 
 ### Requirements:
 
-You need the `dev-libbela` branch of the Bela repo in `/root/Bela`.
-If the board is connected to the internet, this should get you sorted, otherwise use your imagination to get the correct repos and branches on the board.
-
-```
-git clone git@github.com:giuliomoro/pink-trombone.git /root/pink-trombone 
-cd /root/pink-trombone
-git checkout bela
-
-git clone git@github.com:BelaPlatform/Bela.git /root/Bela
-cd /root/Bela
-git checkout dev-libbela
-# Apply a patch that will give you some more CPU
-patch core/PRU.cpp < /root/pink-trombone/PRU.cpp.patch
-make coreclean
-# Build libbela in /root/Bela/lib
-make lib
-# Tell the dynamic loader about libbela
-ldconfig /root/Bela/lib
-```
+Bela.
 
 ### Compile pink-trombone
 
-```
-cd /root/pink-trombone
-make
-```
-
-### Run !
-
-```
-./trombone
-```
+Just drag the .cpp and .h files into a Bela projects and hit run.
 
 ## The code
 
@@ -53,11 +26,14 @@ I added `Math` namespace which implements the required `Math` functions. Replaci
 All the methods and properties are `public` and I tend to use references where possible to stick with the original Javascript `.` notations.
 Final result is pretty crappy looking but it works.
 
-I keep everything in `trombone.cpp` because I could not be bothered factoring out the `class` declarations (and also because some methods are called multiple times per sample, so they benefit from inlining), though this makes the compile a bit slower than I'd wish for.
+I keep everything in `trombone.cpp` because I could not be bothered factoring out the `class` declarations (and also because some methods are called multiple times per sample, so they may benefit from compiler inlining), though this makes the compile a bit slower than I'd wish for.
 
 The Cortex-A8 on Bela does not really like `double` operations, so I also `typedef float sample_t` and casted all the relevant numeric constants to `(sample_t)`.
 This could have been done by using the `-fsingle-precision-constant` compiler options, but it is only supported by `gcc`, while I used `clang` because it gives better performance.
 
+## The non-C++ files
+
+There are some .js files there, mostly taken from the original source code, with a light node wrapper around, which allowed me to run the program via `node`. It was an early prototype phase, where I though I could perhaps run this in `node`, with some audio backend. Luckily I quickly abandoned that and went down the C++ route.
 
 ## Use
 
